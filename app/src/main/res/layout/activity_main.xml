@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context=".ui.activities.MainActivity">
+
+    <!-- 顶部结果显示区（点击重播） -->
+    <TextView
+        android:id="@+id/tv_top_display"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_margin="16dp"
+        android:padding="12dp"
+        android:background="@color/default_bg"
+        android:textSize="18sp"
+        android:textColor="#000000"
+        android:clickable="true"
+        android:contentDescription="@string/tap_to_replay"
+        android:text="@string/welcome_hint"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <!-- 语音指令模拟输入框（输入后按回车执行） -->
+    <EditText
+        android:id="@+id/et_voice_simulate"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:hint="@string/voice_command_hint"
+        android:inputType="text"
+        android:imeOptions="actionDone"
+        app:layout_constraintTop_toBottomOf="@id/tv_top_display"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
+    <!-- 核心功能按钮（合并定位导航+单独语音助手） -->
+    <Button
+        android:id="@+id/btn_locate_nav"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:background="#000000"
+        android:textColor="#FFFFFF"
+        android:contentDescription="@string/locate_nav_desc"
+        android:text="@string/locate_nav"
+        app:layout_constraintTop_toBottomOf="@id/et_voice_simulate"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/guideline_horizontal"
+        app:layout_constraintBottom_toTopOf="@+id/guideline_vertical"/>
+
+    <Button
+        android:id="@+id/btn_voice_assistant"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:background="#4CAF50"
+        android:textColor="#FFFFFF"
+        android:contentDescription="@string/voice_assistant_desc"
+        android:text="@string/voice_assistant"
+        app:layout_constraintTop_toBottomOf="@id/et_voice_simulate"
+        app:layout_constraintStart_toEndOf="@+id/guideline_horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/guideline_vertical"/>
+
+    <Button
+        android:id="@+id/btn_settings"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:background="#000000"
+        android:textColor="#FFFFFF"
+        android:contentDescription="@string/settings_desc"
+        android:text="@string/settings"
+        app:layout_constraintTop_toBottomOf="@+id/guideline_vertical"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toStartOf="@+id/guideline_horizontal"
+        app:layout_constraintBottom_toBottomOf="parent"/>
+
+    <Button
+        android:id="@+id/btn_emergency"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:background="#FF0000"
+        android:textColor="#FFFFFF"
+        android:contentDescription="@string/emergency_desc"
+        android:text="@string/help"
+        app:layout_constraintTop_toBottomOf="@+id/guideline_vertical"
+        app:layout_constraintStart_toEndOf="@+id/guideline_horizontal"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"/>
+
+    <!-- 辅助分割线 -->
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline_horizontal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        app:layout_constraintGuide_percent="0.5"/>
+
+    <androidx.constraintlayout.widget.Guideline
+        android:id="@+id/guideline_vertical"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        app:layout_constraintGuide_percent="0.5"/>
+
+    <!-- 设置模式屏障（同之前） -->
+    <View
+        android:id="@+id/settings_barrier"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@color/settings_barrier_bg"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"/>
+
+    <!-- 设置面板（同之前） -->
+    <LinearLayout
+        android:id="@+id/settings_panel"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_margin="24dp"
+        android:padding="20dp"
+        android:background="#FFFFFF"
+        android:orientation="vertical"
+        android:visibility="gone"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent">
+
+        <TextView
+            android:id="@+id/tv_settings_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="20sp"
+            android:textStyle="bold"
+            android:text="@string/settings_mode"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="16dp"/>
+
+        <TextView
+            android:id="@+id/tv_speed_hint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="18sp"
+            android:text="@string/speed_hint"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="12dp"/>
+
+        <TextView
+            android:id="@+id/tv_language_hint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="18sp"
+            android:text="@string/language_hint"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="12dp"/>
+
+        <TextView
+            android:id="@+id/tv_exit_hint"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textSize="18sp"
+            android:text="@string/exit_hint"
+            android:layout_gravity="center_horizontal"/>
+
+    </LinearLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>
