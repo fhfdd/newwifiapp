@@ -8,15 +8,20 @@ import java.util.List;
 
 @Dao
 public interface WiFiFingerprintDao {
-    // 批量插入WiFi指纹
+
+    // 批量插入指纹数据
     @Insert
     void insertAll(List<WiFiFingerprintEntity> fingerprints);
 
-    // 单条插入WiFi指纹（新增：适配App.java中的循环插入）
-    @Insert
-    void insert(WiFiFingerprintEntity fingerprint);
+    // 关键：查询包含任何一个目标BSSID的指纹（使用IN关键字）
+    @Query("SELECT * FROM wifi_fingerprints WHERE bssid IN (:bssids)")
+    List<WiFiFingerprintEntity> findByBssids(List<String> bssids);
 
-    // 根据BSSID列表和楼层查询指纹
-    @Query("SELECT * FROM wifi_fingerprints WHERE bssid IN (:bssids) AND floor = :floor")
-    List<WiFiFingerprintEntity> findByBssidsAndFloor(List<String> bssids, int floor);
+    // 新增：验证数据是否导入成功（用于调试）
+    @Query("SELECT COUNT(*) FROM wifi_fingerprints")
+    int getTotalCount();
+
+
+    @Query("SELECT * FROM wifi_fingerprints WHERE bssid = :bssid LIMIT 1")
+    WiFiFingerprintEntity findByBssid(String bssid);
 }

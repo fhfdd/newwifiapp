@@ -14,7 +14,7 @@ public class SettingsActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        voiceService = new TextToSpeechService();
+        voiceService = new TextToSpeechService(this);
         voiceService.init(this);
 
     }
