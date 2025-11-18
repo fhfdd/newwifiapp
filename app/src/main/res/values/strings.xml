@@ -1,50 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 基础信息 -->
-    <string name="app_name">室内导航助手</string>
-    <string name="welcome_hint">欢迎！点击“设置”进入设置模式</string>
-
-    <!-- 输入框/按钮相关 -->
-    <string name="voice_command_hint">输入语音指令（例如：定位、导航到厕所）</string>
-    <string name="locate_nav">定位/导航</string>
-    <string name="locate_nav_desc">先定位当前位置，再导航</string>
-    <string name="voice_assistant">语音助手</string>
-    <string name="voice_assistant_desc">激活语音输入</string>
-    <string name="settings">设置</string>
-    <string name="settings_desc">进入设置模式</string>
-    <string name="help">求助</string>
-    <string name="emergency_desc">紧急求助</string>
-
-    <!-- 设置模式相关 -->
-    <string name="settings_mode">设置模式</string>
-    <string name="speed_hint">上滑加快语速 | 下滑减慢语速（当前：%.1f倍）</string>
-    <string name="language_hint">点击面板切换语言（当前：%s）</string>
-    <string name="exit_hint">双击屏幕任意位置退出设置模式</string>
-    <string name="enter_settings">已进入设置模式</string>
-    <string name="exit_settings">已退出设置模式</string>
-    <string name="speed_adjusted">语速已调整为：%.1f倍</string>
-    <string name="language_switched">语言已切换为：%s</string>
-    <string name="settings_mode_hint">当前处于设置模式，请先双击退出</string>
-
-    <!-- 功能提示 -->
-    <string name="tap_to_replay">点击重播语音</string>
-    <string name="emergency_assistance">紧急求助已请求！请保持当前位置</string>
-    <string name="nearby_locations">附近位置：桌子（5米）、厕所（10米）</string>
-    <string name="command_not_recognized">无法识别指令，请尝试“定位”“导航到厕所”等指令</string>
-
-    <!-- 定位功能相关 -->
-    <string name="location_fail_hint">定位失败，请检查WiFi连接</string>
-    <string name="location_success_format">当前位置：%s（区域：%s，楼层：%d，坐标：%d,%d）</string>
-    <string name="location_success_hint">已定位到：%s</string>
-
-    <!-- 语音助手相关 -->
-    <string name="voice_assistant_activated">语音助手已激活，请说出指令</string>
-
-    <!-- 设置模式相关 -->
-    <string name="settings_operation_hint">右滑调快语速 | 左滑切换语言 | 双击退出</string>
-    <string name="exit_settings_hint">已退出设置模式（当前语速：%.1f倍，语言：%s）</string>
-
-    <!-- 导航功能相关 -->
-    <string name="nav_complete_command_hint">请输入完整指令：导航到[目标位置]</string>
-    <string name="nav_need_location_first">请先定位当前位置，再发起导航</string>
+    <string name="app_name">盲人室内导航</string>
+    <string name="welcome">欢迎使用盲人室内导航系统</string>
+    <string name="locate_nav">开始导航</string>
+    <string name="current_location">当前位置</string>
+    <string name="emergency">紧急求助</string>
+    <string name="settings">我的设置</string>
+    <string name="locating">正在定位...</string>
+    <string name="navigating">导航中...</string>
 </resources>

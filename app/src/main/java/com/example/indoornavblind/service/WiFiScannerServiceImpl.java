@@ -82,6 +82,6 @@ public class WiFiScannerServiceImpl implements WiFiScannerService {
     @Override
     public boolean hasPermission() {
         // 调用修复后的checkPermissions（传入Context参数）
-        return PermissionUtil.checkPermissions(context);
+        return PermissionUtil.hasAllPermissions(context);
     }
 }

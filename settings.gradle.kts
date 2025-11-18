@@ -7,10 +7,10 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS) // 优先使用settings的仓库
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        google()       // 移动到这里
-        mavenCentral() // 移动到这里
+        google()
+        mavenCentral()
     }
 }
 
