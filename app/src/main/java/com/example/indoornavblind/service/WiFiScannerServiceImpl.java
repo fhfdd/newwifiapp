@@ -1,8 +1,11 @@
 package com.example.indoornavblind.service;
 
 import android.content.Context;
+import android.location.LocationManager;
 import android.net.wifi.ScanResult;
 import android.net.wifi.WifiManager;
+import android.os.Build;
+import android.provider.Settings;
 import android.util.Log;
 
 import com.example.indoornavblind.model.WiFiData;
@@ -32,13 +35,39 @@ public class WiFiScannerServiceImpl implements WiFiScannerService {
             return results;
         }
 
-        // 2. 检查WiFi是否开启
-        if (!wifiManager.isWifiEnabled()) {
-            Log.e("WiFiScanner", "WiFi未开启，无法扫描");
+        // 2. 检查位置服务是否开启（安卓系统强制要求）
+        if (!isLocationEnabled()) {
+            Log.e("WiFiScanner", "位置服务未开启，无法扫描WiFi");
             return results;
         }
 
+        // 3. 检查并尝试开启WiFi
+        if (!wifiManager.isWifiEnabled()) {
+            Log.e("WiFiScanner", "WiFi未开启，尝试开启...");
+            // 仅安卓Q以下支持自动开启WiFi
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+                boolean enabled = wifiManager.setWifiEnabled(true);
+                Log.d("WiFiScanner", "WiFi开启结果：" + (enabled ? "成功" : "失败"));
+                // 等待WiFi启动（最多5秒）
+                int waitCount = 0;
+                while (!wifiManager.isWifiEnabled() && waitCount < 5) {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        break;
+                    }
+                    waitCount++;
+                }
+            }
+            // 再次检查WiFi状态
+            if (!wifiManager.isWifiEnabled()) {
+                Log.e("WiFiScanner", "WiFi仍未开启，无法扫描");
+                return results;
+            }
+        }
+
         try {
+            // 4. 启动WiFi扫描
             boolean scanStarted = wifiManager.startScan();
             Log.d("WiFiScanner", "扫描启动结果：" + (scanStarted ? "成功" : "失败"));
             if (!scanStarted) {
@@ -46,13 +75,31 @@ public class WiFiScannerServiceImpl implements WiFiScannerService {
                 return results;
             }
 
-            // 3. 延迟获取扫描结果（部分设备需要等待扫描完成）
-            Thread.sleep(1000); // 等待1秒再获取结果
-            List<ScanResult> scans = wifiManager.getScanResults();
-            Log.d("WiFiScanner", "扫描到的WiFi数量：" + scans.size());
+            // 5. 循环等待扫描结果（最多3秒，每100ms检查一次）
+            List<ScanResult> scans = null;
+            int waitMs = 0;
+            while (waitMs < 3000) {
+                scans = wifiManager.getScanResults();
+                if (scans != null && !scans.isEmpty()) {
+                    break; // 拿到结果立即退出等待
+                }
+                try {
+                    Thread.sleep(100);
+                } catch (InterruptedException e) {
+                    break;
+                }
+                waitMs += 100;
+            }
 
+            // 6. 处理扫描结果
+            if (scans == null || scans.isEmpty()) {
+                Log.e("WiFiScanner", "扫描超时，未获取到有效结果");
+                return results;
+            }
+
+            Log.d("WiFiScanner", "扫描到的WiFi数量：" + scans.size());
             for (ScanResult scan : scans) {
-                if (scan.BSSID == null || scan.BSSID.isEmpty()) {
+                if (scan.BSSID == null || scan.BSSID.isEmpty() || scan.level < -70) {
                     Log.w("WiFiScanner", "过滤无效WiFi（BSSID为空）");
                     continue;
                 }
@@ -65,8 +112,6 @@ public class WiFiScannerServiceImpl implements WiFiScannerService {
             }
         } catch (SecurityException e) {
             Log.e("WiFiScanner", "权限异常：" + e.getMessage(), e);
-        } catch (InterruptedException e) {
-            Log.e("WiFiScanner", "扫描等待被中断：" + e.getMessage());
         }
         return results;
     }
@@ -78,6 +123,22 @@ public class WiFiScannerServiceImpl implements WiFiScannerService {
     public void setWifiStatusListener(WifiStatusListener listener) {
         this.wifiStatusListener = listener;
     }
+
+    // 在WiFiScannerServiceImpl的scanWiFi()方法中，权限检查后添加
+    private boolean isLocationEnabled() {
+        LocationManager lm = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            return lm != null && lm.isLocationEnabled();
+        } else {
+            try {
+                int mode = Settings.Secure.getInt(context.getContentResolver(), Settings.Secure.LOCATION_MODE);
+                return mode != Settings.Secure.LOCATION_MODE_OFF;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+    }
+
 
     @Override
     public boolean hasPermission() {
