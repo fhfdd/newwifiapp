@@ -12,29 +12,59 @@ import java.util.*;
 
 public class PathParser {
     private static final String TAG = "PathParser";
+    private static final String[] FINGERPRINT_FILES = {"path_db.json","path_3a.json"};
     private static List<PathEntity> allPaths = new ArrayList<>();
     private static boolean isInitialized = false;
+    private static final Object LOCK = new Object();
 
     public static void init(Context context) {
-        if (isInitialized) return;
-        
-        try {
-            InputStream is = context.getAssets().open("path_db.json");
-            InputStreamReader reader = new InputStreamReader(is);
-            Gson gson = new Gson();
-            Type type = new TypeToken<List<PathEntity>>(){}.getType();
-            allPaths = gson.fromJson(reader, type);
-            isInitialized = true;
-            Log.d(TAG, "路径数据加载成功，共" + allPaths.size() + "条");
-            reader.close();
-        } catch (Exception e) {
-            Log.e(TAG, "加载路径数据失败", e);
+        synchronized (LOCK) {
+            if (isInitialized) return;
+
             allPaths = new ArrayList<>();
+            int totalLoaded = 0;
+
+            try {
+                for (String fileName : FINGERPRINT_FILES) {
+                    List<PathEntity> filePaths = null;
+                    try (InputStream is = context.getAssets().open(fileName);
+                         InputStreamReader reader = new InputStreamReader(is)) {
+
+                        Gson gson = new Gson();
+                        Type type = new TypeToken<List<PathEntity>>() {}.getType();
+                        filePaths = gson.fromJson(reader, type);
+
+                    } catch (Exception e) {
+                        Log.e(TAG, "加载文件[" + fileName + "]失败", e);
+                    }
+
+                    if (filePaths != null && !filePaths.isEmpty()) {
+                        allPaths.addAll(filePaths);
+                        totalLoaded += filePaths.size();
+                        Log.d(TAG, "文件[" + fileName + "]加载成功，共" + filePaths.size() + "条");
+                    }
+                }
+
+                isInitialized = true;
+                Log.d(TAG, "所有路径数据加载完成，总计" + totalLoaded + "条");
+
+            } catch (Exception e) {
+                Log.e(TAG, "初始化路径数据异常", e);
+                allPaths = new ArrayList<>();
+            }
         }
     }
 
     public static List<PathEntity> getAllPaths() {
-        return allPaths;
+        synchronized (LOCK) {
+            return Collections.unmodifiableList(new ArrayList<>(allPaths));
+        }
+    }
+
+    public static boolean isInitialized() {
+        synchronized (LOCK) {
+            return isInitialized;
+        }
     }
 
     public static List<PathEntity> getFullPath(String start, String end) {
