@@ -11,6 +11,16 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.TextView;
+import android.content.Intent;
+import android.net.Uri;
+import android.Manifest;
+import android.content.pm.PackageManager;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+import androidx.annotation.NonNull;
+import android.content.ActivityNotFoundException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import androidx.appcompat.app.AppCompatActivity;
 import com.example.indoornavblind.R;
 import com.example.indoornavblind.factory.ServiceFactory;
@@ -53,19 +63,22 @@ public class MainActivity extends AppCompatActivity {
     private TextView tvTopDisplay;
     private EditText etVoiceSimulate;
     private Button btnLocateNav, btnVoiceAssistant, btnSettings, btnEmergency;
+    private Button btnSendLocation, btnWhatsApp;
     private View settingsFullscreen;
     private TextView tvSpeedDisplay, tvLanguageDisplay, tvPaceDisplay;
+    private String pendingCallNumber = null;
+    private static final int REQUEST_CALL_PERMISSION = 1001;
 
     // 状态
     private Position currentPosition;
     private boolean isInSettingsMode = false;
-    private boolean isLocated = false;
+    private boolean isLocated = false; // 是否已定位
     private boolean hasDestination = false;
     private String destinationName = "";
     private float speechSpeed = 1.0f;
     private String currentLanguage = "中文";
     private Locale currentLocale = Locale.CHINESE;
-    private int navigationPace = 20000;
+    private int navigationPace = 3000; // 毫秒
     private String lastSpokenText = "";
 
     // 长按处理
@@ -123,7 +136,7 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         });
-
+        
         initSpeechListener();
     }
 
@@ -134,6 +147,8 @@ public class MainActivity extends AppCompatActivity {
         btnVoiceAssistant = findViewById(R.id.btn_voice_assistant);
         btnSettings = findViewById(R.id.btn_settings);
         btnEmergency = findViewById(R.id.btn_emergency);
+        btnSendLocation = findViewById(R.id.btn_send_location);
+        btnWhatsApp = findViewById(R.id.btn_whatsapp);
         settingsFullscreen = findViewById(R.id.settings_fullscreen);
         tvSpeedDisplay = findViewById(R.id.tv_speed_display);
         tvLanguageDisplay = findViewById(R.id.tv_language_display);
@@ -149,10 +164,28 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 2. 定位/导航按钮 - 支持单击和长按
-        setupLocateNavButton();
+        // 2. 定位/导航按钮（合并功能）
+        btnLocateNav.setOnClickListener(v -> {
+            if (isInSettingsMode) {
+                speak("请先退出设置模式", speechSpeed);
+                return;
+            }
 
-        // 3. 语音助手按钮
+            if (!isLocated) {
+                // 未定位 → 执行定位
+                startLocation();
+            } else {
+                // 已定位 → 执行导航
+                String target = etVoiceSimulate.getText().toString().trim();
+                if (target.isEmpty()) {
+                    speak("请输入目的地", speechSpeed);
+                } else {
+                    startNavigation(target);
+                }
+            }
+        });
+
+        // 3. 语音助手按钮（可以说任何指令）
         btnVoiceAssistant.setOnClickListener(v -> {
             if (isInSettingsMode) {
                 speak("请先退出设置模式", speechSpeed);
@@ -166,9 +199,20 @@ public class MainActivity extends AppCompatActivity {
         // 4. 设置按钮
         btnSettings.setOnClickListener(v -> enterSettingsMode());
 
-        // 5. 紧急求助
+        // 5. 紧急求助（改为直接拨打电话，需权限）
         btnEmergency.setOnClickListener(v -> {
-            speak("紧急求助已发送", speechSpeed);
+            String emergencyNumber = "+85212345678"; // 国际格式：+85212345678
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.CALL_PHONE)
+                    == PackageManager.PERMISSION_GRANTED) {
+                makePhoneCall(emergencyNumber);
+            } else {
+                // 保存号码，授权后继续
+                pendingCallNumber = emergencyNumber;
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.CALL_PHONE},
+                        REQUEST_CALL_PERMISSION);
+                speak("需要拨打电话权限，正在请求授权", speechSpeed);
+            }
             vibrate(500);
         });
 
@@ -196,6 +240,35 @@ public class MainActivity extends AppCompatActivity {
             }
             return true;
         });
+
+        // 9. WhatsApp 联系与发送位置按钮
+        btnWhatsApp.setOnClickListener(v -> {
+            // keep existing behavior: open chat with default number
+            String phone = "+1234567890"; // TODO: replace
+            String message = "Hello from my app";
+            openWhatsAppChat(phone, message);
+        });
+
+        String message = sb.toString();
+
+        // Try to send via WhatsApp app (text share)
+        Intent sendIntent = new Intent(Intent.ACTION_SEND);
+        sendIntent.setType("text/plain");
+        sendIntent.putExtra(Intent.EXTRA_TEXT, message);
+        sendIntent.setPackage("com.whatsapp");
+        try {
+            startActivity(sendIntent);
+        } catch (ActivityNotFoundException ex1) {
+            // Try WhatsApp Business
+            try {
+                sendIntent.setPackage("com.whatsapp.w4b");
+                startActivity(sendIntent);
+            } catch (ActivityNotFoundException ex2) {
+                // Fallback: show system share sheet
+                Intent chooser = Intent.createChooser(sendIntent, "分享位置");
+                startActivity(chooser);
+            }
+        }
 
     }
 
@@ -355,16 +428,21 @@ public class MainActivity extends AppCompatActivity {
                 float deltaX = e2.getX() - e1.getX();
                 float deltaY = e2.getY() - e1.getY();
 
+                // 判断是横向还是纵向滑动
                 if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                    // 横向滑动 → 切换语言
                     if (Math.abs(deltaX) > 100) {
                         switchLanguage();
                         return true;
                     }
                 } else {
+                    // 纵向滑动 → 调节语速
                     if (Math.abs(deltaY) > 100) {
                         if (deltaY < 0) {
+                            // 上滑 → 加速
                             adjustSpeed(SPEED_STEP);
                         } else {
+                            // 下滑 → 减速
                             adjustSpeed(-SPEED_STEP);
                         }
                         return true;
@@ -384,6 +462,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public boolean onSingleTapConfirmed(MotionEvent e) {
+                // 单击可以切换播报间隔
                 if (isInSettingsMode) {
                     switchPace();
                     return true;
@@ -417,7 +496,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 处理语音命令（改进版）
+     * 处理语音命令
      */
     private void handleVoiceCommand(String command) {
         command = command.toLowerCase();
@@ -493,6 +572,7 @@ public class MainActivity extends AppCompatActivity {
                     speak(msg, speechSpeed);
                     vibrate(200);
 
+                    // 播报附近POI
                     new Handler(Looper.getMainLooper()).postDelayed(() -> {
                         announceNearbyPOIs(position);
 
@@ -699,6 +779,69 @@ public class MainActivity extends AppCompatActivity {
     private void vibrate(long milliseconds) {
         if (vibrator != null && vibrator.hasVibrator()) {
             vibrator.vibrate(milliseconds);
+        }
+    }
+
+    private void makePhoneCall(String number) {
+        try {
+            Intent callIntent = new Intent(Intent.ACTION_CALL);
+            callIntent.setData(Uri.parse("tel:" + number));
+            startActivity(callIntent);
+            speak("正在拨打电话", speechSpeed);
+            vibrate(200);
+        } catch (Exception e) {
+            speak("无法拨打电话，请手动拨号", speechSpeed);
+            vibrate(300);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == REQUEST_CALL_PERMISSION) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                if (pendingCallNumber != null) {
+                    makePhoneCall(pendingCallNumber);
+                    pendingCallNumber = null;
+                }
+            } else {
+                speak("权限被拒绝，无法拨打电话", speechSpeed);
+            }
+        }
+    }
+
+    /**
+     * Open a WhatsApp chat to a phone number with a prefilled message.
+     * Falls back to WhatsApp Business or the browser if WhatsApp isn't installed.
+     */
+    private void openWhatsAppChat(String phone, String message) {
+        if (phone == null || phone.trim().isEmpty()) return;
+
+        String cleaned = phone.replaceAll("[^0-9]", "");
+        String encodedMessage;
+        try {
+            encodedMessage = URLEncoder.encode(message == null ? "" : message, "UTF-8");
+        } catch (UnsupportedEncodingException e) {
+            encodedMessage = message == null ? "" : message;
+        }
+
+        String url = "https://wa.me/" + cleaned + (encodedMessage.isEmpty() ? "" : "?text=" + encodedMessage);
+
+        Intent appIntent = new Intent(Intent.ACTION_VIEW);
+        appIntent.setData(Uri.parse(url));
+        appIntent.setPackage("com.whatsapp");
+
+        try {
+            startActivity(appIntent);
+        } catch (ActivityNotFoundException e1) {
+            try {
+                appIntent.setPackage("com.whatsapp.w4b");
+                startActivity(appIntent);
+            } catch (ActivityNotFoundException e2) {
+                // Fallback to browser
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                startActivity(browserIntent);
+            }
         }
     }
 
