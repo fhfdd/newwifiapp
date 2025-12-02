@@ -10,7 +10,7 @@ import java.util.Locale;
 /**
  * 路径导航实现：基于预定义路径的导航，实现NavigationService接口
  */
-public class PathNavigationService implements NavigationService {
+public class L_PathNavigationService implements NavigationService {
     private Position currentPosition;
     private String target;
     private List<PathEntity> fullPath;

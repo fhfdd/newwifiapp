@@ -13,7 +13,7 @@ import com.example.indoornavblind.util.PermissionUtil;
 import java.util.ArrayList;
 import java.util.List;
 
-public class WiFiScannerServiceImpl implements WiFiScannerService {
+public class L_WiFiScannerServiceImpl implements WiFiScannerService {
     private WifiManager wifiManager;
     private Context context;
 

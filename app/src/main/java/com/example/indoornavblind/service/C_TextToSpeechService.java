@@ -10,7 +10,7 @@ import java.util.Locale;
 /**
  * 文字转语音服务实现 - 修复版
  */
-public class TextToSpeechService implements VoiceService {
+public class C_TextToSpeechService implements VoiceService {
     private static final String TAG = "TextToSpeechService";
     private TextToSpeech tts;
     private Context context;
@@ -18,7 +18,7 @@ public class TextToSpeechService implements VoiceService {
     private float currentSpeed = 1.0f;
     private Locale currentLocale = Locale.CHINESE;
 
-    public TextToSpeechService(Context context) {
+    public C_TextToSpeechService(Context context) {
         this.context = context;
         initTTS();
     }

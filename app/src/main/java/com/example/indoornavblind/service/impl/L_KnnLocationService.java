@@ -23,7 +23,7 @@ import java.util.concurrent.Executors;
 /**
  * KNN定位实现：基于WiFi指纹的定位算法，实现LocationService接口
  */
-public class KnnLocationService implements LocationService {
+public class L_KnnLocationService implements LocationService {
     private static final String TAG = "KnnLocationService";
     private final WiFiScannerService wifiScanner;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -31,7 +31,7 @@ public class KnnLocationService implements LocationService {
     private static final int KNN_TOP_N = 3; // 可配置的K值
 
     // 构造注入依赖（依赖抽象而非具体）
-    public KnnLocationService(WiFiScannerService wifiScanner) {
+    public L_KnnLocationService(WiFiScannerService wifiScanner) {
         this.wifiScanner = wifiScanner;
         Log.d(TAG, "KnnLocationService初始化，依赖WiFiScanner：" + wifiScanner.getClass().getSimpleName());
     }

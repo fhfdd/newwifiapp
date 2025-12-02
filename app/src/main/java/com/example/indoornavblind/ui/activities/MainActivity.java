@@ -27,11 +27,10 @@ import com.example.indoornavblind.factory.ServiceFactory;
 import com.example.indoornavblind.model.PathEntity;
 import com.example.indoornavblind.model.Position;
 import com.example.indoornavblind.service.LocationService;
-import com.example.indoornavblind.service.NavigationService;
-import com.example.indoornavblind.service.SpeechRecognizerService;
+import com.example.indoornavblind.service.C_SpeechRecognizerService;
 import com.example.indoornavblind.service.VoiceService;
 import com.example.indoornavblind.service.WiFiScannerService;
-import com.example.indoornavblind.service.impl.EnhancedNavigationService;
+import com.example.indoornavblind.service.impl.L_EnhancedNavigationService;
 import com.example.indoornavblind.util.PathParser;
 import com.example.indoornavblind.util.PermissionUtil;
 import java.util.ArrayList;
@@ -54,8 +53,8 @@ public class MainActivity extends AppCompatActivity {
     // 服务
     private VoiceService voiceService;
     private LocationService locationService;
-    private EnhancedNavigationService navigationService;
-    private SpeechRecognizerService speechService;
+    private L_EnhancedNavigationService navigationService;
+    private C_SpeechRecognizerService speechService;
     private WiFiScannerService wifiScanner;
     private Vibrator vibrator;
 
@@ -117,17 +116,18 @@ public class MainActivity extends AppCompatActivity {
         speak("欢迎使用盲人室内导航系统。单击按钮开始定位，长按退出导航", speechSpeed);
     }
 
+
     private void initServices() {
         ServiceFactory factory = ServiceFactory.getInstance(this);
         voiceService = factory.createVoiceService();
         locationService = factory.createLocationService();
-        navigationService = new EnhancedNavigationService(voiceService, locationService);
+        navigationService = new L_EnhancedNavigationService(voiceService, locationService);
         speechService = factory.createSpeechRecognizerService();
         wifiScanner = factory.createWiFiScannerService();
         vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
 
         // 设置位置更新回调（新增）
-        navigationService.setPositionUpdateCallback(new EnhancedNavigationService.PositionUpdateCallback() {
+        navigationService.setPositionUpdateCallback(new L_EnhancedNavigationService.PositionUpdateCallback() {
             @Override
             public void onPositionUpdated(Position newPosition) {
                 runOnUiThread(() -> {
@@ -478,7 +478,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void initSpeechListener() {
-        speechService.setRecognitionListener(new SpeechRecognizerService.OnRecognitionListener() {
+        speechService.setRecognitionListener(new C_SpeechRecognizerService.OnRecognitionListener() {
             @Override
             public void onResult(ArrayList<String> results) {
                 if (results != null && !results.isEmpty()) {

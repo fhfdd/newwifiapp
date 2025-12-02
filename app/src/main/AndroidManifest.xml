@@ -16,6 +16,8 @@
     <!-- 需要拨打电话（直接拨打 ACTION_CALL） -->
     <uses-permission android:name="android.permission.CALL_PHONE" />
 
+    <uses-permission android:name="android.permission.CALL_PHONE" />
+
     <!-- 🆕 针对旧设备的兼容性声明 -->
     <uses-feature android:name="android.hardware.wifi" android:required="true" />
 
@@ -53,7 +55,7 @@
 
         <!-- 设置界面（备用，当前集成在MainActivity） -->
         <activity
-            android:name="com.example.indoornavblind.ui.activities.SettingsActivity"
+            android:name="com.example.indoornavblind.ui.activities.R_SettingsActivity"
             android:exported="false" />
     </application>
 </manifest>

@@ -30,7 +30,7 @@ import java.util.Locale;
  * 5. 动态播报间隔（接近拐弯点时缩短）
  * 6. 错过拐弯检测和提示
  */
-public class EnhancedNavigationService implements NavigationService {
+public class L_EnhancedNavigationService implements NavigationService {
     private static final String TAG = "EnhancedNavigation";
 
     /**
@@ -79,7 +79,7 @@ public class EnhancedNavigationService implements NavigationService {
     // 位置更新回调（新增）
     private PositionUpdateCallback positionCallback;
 
-    public EnhancedNavigationService(VoiceService voiceService, LocationService locationService) {
+    public L_EnhancedNavigationService(VoiceService voiceService, LocationService locationService) {
         this.voiceService = voiceService;
         this.locationService = locationService;
     }

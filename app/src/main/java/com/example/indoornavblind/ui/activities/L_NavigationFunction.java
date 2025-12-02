@@ -9,14 +9,14 @@ import java.util.List;
 /**
  * 导航功能：实现MainFunction接口，依赖导航服务和语音服务
  */
-public class NavigationFunction implements MainFunction {
+public class L_NavigationFunction implements MainFunction {
     private final NavigationService navigationService;
     private final VoiceService voiceService;
     private final NavCallback callback;
 
-    public NavigationFunction(NavigationService navigationService,
-                              VoiceService voiceService,
-                              NavCallback callback) {
+    public L_NavigationFunction(NavigationService navigationService,
+                                VoiceService voiceService,
+                                NavCallback callback) {
         this.navigationService = navigationService;
         this.voiceService = voiceService;
         this.callback = callback;

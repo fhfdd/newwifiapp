@@ -1,8 +1,5 @@
 package com.example.indoornavblind.service;
 
-import android.content.Context;
-import android.util.Log;
-
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -14,7 +11,7 @@ import java.util.Map;
 import okhttp3.*;
 import okio.BufferedSink;
 
-public class WitAiService {
+public class C_WitAiService {
     private static final String TAG = "WitAiService";
     private static final String WIT_API_URL = "https://api.wit.ai/message?v=20251119&q=";
     private static final String WIT_API_KEY = "Bearer XXO7YTXPVO2JGNGIRRC56KZUSDHGJ3Q4";

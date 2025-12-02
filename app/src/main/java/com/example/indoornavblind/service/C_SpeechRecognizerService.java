@@ -7,7 +7,7 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import java.util.ArrayList;
 
-public class SpeechRecognizerService {
+public class C_SpeechRecognizerService {
     private SpeechRecognizer speechRecognizer;
     private Context context;
     private OnRecognitionListener listener; // 监听器实例

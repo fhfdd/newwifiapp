@@ -7,7 +7,7 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import com.example.indoornavblind.model.Position;
 
-public class PDServiceImpl implements PDService, SensorEventListener {
+public class L_PDServiceImpl implements PDService, SensorEventListener {
     private SensorManager sensorManager;
     private Sensor accelerometer;
     private Sensor gyroscope;
