@@ -1,67 +1,165 @@
 package com.example.indoornavblind.util;
 
 import android.content.Context;
+import android.util.Log;
 import com.example.indoornavblind.model.PathEntity;
+import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class PathParser {
-    private static List<PathEntity> allPaths;
-    private static String currentLang = "cn"; // 默认中文
+    private static final String TAG = "PathParser";
+    private static final String[] FINGERPRINT_FILES = {"path_db.json","path_3a.json"};
+    private static List<PathEntity> allPaths = new ArrayList<>();
+    private static boolean isInitialized = false;
+    private static final Object LOCK = new Object();
 
-    // 初始化路径数据（从path_db.json读取）
     public static void init(Context context) {
-        if (allPaths != null) return;
-        try (InputStream is = context.getAssets().open("path_db.json");
-             BufferedReader br = new BufferedReader(new InputStreamReader(is))) {
+        synchronized (LOCK) {
+            if (isInitialized) return;
 
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = br.readLine()) != null) sb.append(line);
-
-            Type type = new TypeToken<List<PathEntity>>(){}.getType();
-            allPaths = GsonUtil.fromJson(sb.toString(), type);
-        } catch (IOException e) {
             allPaths = new ArrayList<>();
+            int totalLoaded = 0;
+
+            try {
+                for (String fileName : FINGERPRINT_FILES) {
+                    List<PathEntity> filePaths = null;
+                    try (InputStream is = context.getAssets().open(fileName);
+                         InputStreamReader reader = new InputStreamReader(is)) {
+
+                        Gson gson = new Gson();
+                        Type type = new TypeToken<List<PathEntity>>() {}.getType();
+                        filePaths = gson.fromJson(reader, type);
+
+                    } catch (Exception e) {
+                        Log.e(TAG, "加载文件[" + fileName + "]失败", e);
+                    }
+
+                    if (filePaths != null && !filePaths.isEmpty()) {
+                        allPaths.addAll(filePaths);
+                        totalLoaded += filePaths.size();
+                        Log.d(TAG, "文件[" + fileName + "]加载成功，共" + filePaths.size() + "条");
+                    }
+                }
+
+                isInitialized = true;
+                Log.d(TAG, "所有路径数据加载完成，总计" + totalLoaded + "条");
+
+            } catch (Exception e) {
+                Log.e(TAG, "初始化路径数据异常", e);
+                allPaths = new ArrayList<>();
+            }
         }
     }
 
-    // 设置当前语言（cn=中文, en=英语, yue=粤语）
-    public static void setCurrentLang(String lang) {
-        if (lang.matches("cn|en|yue")) currentLang = lang;
-    }
-
-    // 根据起点和终点获取完整路径（需实现实际逻辑）
-    public static List<PathEntity> getFullPath(String startLabel, String endLabel) {
-        List<PathEntity> result = new ArrayList<>();
-        if (allPaths == null) return result;
-
-        // 实际逻辑：遍历allPaths，匹配startLabel和endLabel，拼接完整路径
-        // 示例：仅返回空列表，需根据实际path_db.json格式实现
-        return result;
-    }
-
-    // 根据语言获取方向描述（已有方法）
-    public static String getDirectionByLang(PathEntity path) {
-        switch (currentLang) {
-            case "en": return path.getDirection_en();
-            case "yue": return path.getDirection_yue();
-            default: return path.getDirection_cn(); // 默认中文
+    public static List<PathEntity> getAllPaths() {
+        synchronized (LOCK) {
+            return Collections.unmodifiableList(new ArrayList<>(allPaths));
         }
     }
 
-    // 新增：根据语言获取距离描述（解决错误的核心方法）
-    public static String getDistanceByLang(PathEntity path) {
-        switch (currentLang) {
-            case "en": return path.getDistance_en(); // 英语距离（如"5 meters"）
-            case "yue": return path.getDistance_yue(); // 粤语距离（如"5米"）
-            default: return path.getDistance_cn(); // 中文距离（如"5米"）
+    public static boolean isInitialized() {
+        synchronized (LOCK) {
+            return isInitialized;
         }
+    }
+
+    public static List<PathEntity> getFullPath(String start, String end) {
+        if (!isInitialized || allPaths.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Queue<String> queue = new LinkedList<>();
+        Map<String, String> previous = new HashMap<>();
+        Set<String> visited = new HashSet<>();
+        
+        queue.offer(start);
+        visited.add(start);
+        
+        while (!queue.isEmpty()) {
+            String current = queue.poll();
+            
+            if (current.equals(end)) {
+                return reconstructPath(previous, start, end);
+            }
+            
+            for (PathEntity path : allPaths) {
+                if (path.getStartLabel_cn().equals(current) && 
+                    !visited.contains(path.getEndLabel_cn())) {
+                    queue.offer(path.getEndLabel_cn());
+                    visited.add(path.getEndLabel_cn());
+                    previous.put(path.getEndLabel_cn(), current);
+                }
+            }
+        }
+        
+        return Collections.emptyList();
+    }
+
+    private static List<PathEntity> reconstructPath(Map<String, String> previous, String start, String end) {
+        List<PathEntity> path = new ArrayList<>();
+        String current = end;
+        
+        while (!current.equals(start)) {
+            String prev = previous.get(current);
+            if (prev == null) break;
+            
+            PathEntity edge = findEdge(prev, current);
+            if (edge != null) {
+                path.add(0, edge);
+            }
+            current = prev;
+        }
+        
+        return path;
+    }
+
+    private static PathEntity findEdge(String from, String to) {
+        for (PathEntity path : allPaths) {
+            if (path.getStartLabel_cn().equals(from) && 
+                path.getEndLabel_cn().equals(to)) {
+                return path;
+            }
+        }
+        return null;
+    }
+
+    public static String getDirectionByLang(PathEntity path, Locale locale) {
+        if (locale.equals(Locale.ENGLISH)) {
+            return path.getDirection_en();
+        } else if (locale.getLanguage().equals("yue")) {
+            return path.getDirection_yue();
+        }
+        return path.getDirection_cn();
+    }
+
+    public static String getDistanceByLang(PathEntity path, Locale locale) {
+        if (locale.equals(Locale.ENGLISH)) {
+            return path.getDistance_en();
+        } else if (locale.getLanguage().equals("yue")) {
+            return path.getDistance_yue();
+        }
+        return path.getDistance_cn();
+    }
+
+    public static String getNextPointByLang(PathEntity path, Locale locale) {
+        if (locale.equals(Locale.ENGLISH)) {
+            return path.getNextPoint_en();
+        } else if (locale.getLanguage().equals("yue")) {
+            return path.getNextPoint_yue();
+        }
+        return path.getNextPoint_cn();
+    }
+
+    public static List<String> getAllPOINames() {
+        Set<String> pois = new HashSet<>();
+        for (PathEntity path : allPaths) {
+            pois.add(path.getStartLabel_cn());
+            pois.add(path.getEndLabel_cn());
+        }
+        return new ArrayList<>(pois);
     }
 }

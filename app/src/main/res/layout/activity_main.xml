@@ -1,179 +1,202 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".ui.activities.MainActivity">
+    android:padding="16dp"
+    android:background="#F5F5F5">
 
-    <!-- 顶部结果显示区（点击重播） -->
+    <!-- 顶部显示区 -->
     <TextView
         android:id="@+id/tv_top_display"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:padding="12dp"
-        android:background="@color/default_bg"
-        android:textSize="18sp"
+        android:layout_width="match_parent"
+        android:layout_height="120dp"
+        android:layout_alignParentTop="true"
+        android:background="@drawable/rounded_bg"
+        android:padding="20dp"
+        android:text="欢迎使用盲人导航"
+        android:textSize="24sp"
         android:textColor="#000000"
+        android:gravity="center"
         android:clickable="true"
-        android:contentDescription="@string/tap_to_replay"
-        android:text="@string/welcome_hint"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
+        android:focusable="true"
+        android:contentDescription="状态显示区，点击重播语音"/>
 
-    <!-- 语音指令模拟输入框（输入后按回车执行） -->
+    <!-- 语音输入框 -->
     <EditText
         android:id="@+id/et_voice_simulate"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="16dp"
-        android:hint="@string/voice_command_hint"
-        android:inputType="text"
-        android:imeOptions="actionDone"
-        app:layout_constraintTop_toBottomOf="@id/tv_top_display"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"/>
-
-    <!-- 核心功能按钮（合并定位导航+单独语音助手） -->
-    <Button
-        android:id="@+id/btn_locate_nav"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:background="#000000"
-        android:textColor="#FFFFFF"
-        android:contentDescription="@string/locate_nav_desc"
-        android:text="@string/locate_nav"
-        app:layout_constraintTop_toBottomOf="@id/et_voice_simulate"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/guideline_horizontal"
-        app:layout_constraintBottom_toTopOf="@+id/guideline_vertical"/>
-
-    <Button
-        android:id="@+id/btn_voice_assistant"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:background="#4CAF50"
-        android:textColor="#FFFFFF"
-        android:contentDescription="@string/voice_assistant_desc"
-        android:text="@string/voice_assistant"
-        app:layout_constraintTop_toBottomOf="@id/et_voice_simulate"
-        app:layout_constraintStart_toEndOf="@+id/guideline_horizontal"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toTopOf="@+id/guideline_vertical"/>
-
-    <Button
-        android:id="@+id/btn_settings"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:background="#000000"
-        android:textColor="#FFFFFF"
-        android:contentDescription="@string/settings_desc"
-        android:text="@string/settings"
-        app:layout_constraintTop_toBottomOf="@+id/guideline_vertical"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/guideline_horizontal"
-        app:layout_constraintBottom_toBottomOf="parent"/>
-
-    <Button
-        android:id="@+id/btn_emergency"
-        android:layout_width="0dp"
-        android:layout_height="0dp"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:background="#FF0000"
-        android:textColor="#FFFFFF"
-        android:contentDescription="@string/emergency_desc"
-        android:text="@string/help"
-        app:layout_constraintTop_toBottomOf="@+id/guideline_vertical"
-        app:layout_constraintStart_toEndOf="@+id/guideline_horizontal"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent"/>
-
-    <!-- 辅助分割线 -->
-    <androidx.constraintlayout.widget.Guideline
-        android:id="@+id/guideline_horizontal"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="vertical"
-        app:layout_constraintGuide_percent="0.5"/>
-
-    <androidx.constraintlayout.widget.Guideline
-        android:id="@+id/guideline_vertical"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        app:layout_constraintGuide_percent="0.5"/>
-
-    <!-- 设置模式屏障（同之前） -->
-    <View
-        android:id="@+id/settings_barrier"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/settings_barrier_bg"
-        android:visibility="gone"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"/>
+        android:layout_height="60dp"
+        android:layout_below="@id/tv_top_display"
+        android:layout_marginTop="20dp"
+        android:hint="输入目的地"
+        android:textSize="20sp"
+        android:padding="15dp"
+        android:background="@drawable/rounded_bg"
+        android:imeOptions="actionDone"
+        android:contentDescription="输入目的地"/>
 
-    <!-- 设置面板（同之前） -->
+    <!-- 3按钮网格布局 -->
     <LinearLayout
-        android:id="@+id/settings_panel"
-        android:layout_width="0dp"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="24dp"
-        android:padding="20dp"
-        android:background="#FFFFFF"
-        android:orientation="vertical"
-        android:visibility="gone"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintBottom_toBottomOf="parent">
+        android:layout_below="@id/et_voice_simulate"
+        android:layout_marginTop="20dp"
+        android:layout_above="@+id/bottom_spacer"
+        android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/tv_settings_title"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="20sp"
-            android:textStyle="bold"
-            android:text="@string/settings_mode"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="16dp"/>
+        <!-- 第一行：定位导航 + 语音助手 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
 
-        <TextView
-            android:id="@+id/tv_speed_hint"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="18sp"
-            android:text="@string/speed_hint"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="12dp"/>
+            <!-- 定位/导航按钮（合并） -->
+            <Button
+                android:id="@+id/btn_locate_nav"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_margin="8dp"
+                android:text="定位导航"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:background="@drawable/button_primary"
+                android:textColor="#FFFFFF"
+                android:contentDescription="定位和导航按钮。未定位时点击定位，定位后输入目的地再点击开始导航"/>
 
-        <TextView
-            android:id="@+id/tv_language_hint"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="18sp"
-            android:text="@string/language_hint"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginBottom="12dp"/>
+            <!-- 语音助手按钮 -->
+            <Button
+                android:id="@+id/btn_voice_assistant"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_margin="8dp"
+                android:text="语音助手"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:background="@drawable/button_secondary"
+                android:textColor="#FFFFFF"
+                android:contentDescription="语音助手按钮，点击后可以说任何指令"/>
+        </LinearLayout>
 
-        <TextView
-            android:id="@+id/tv_exit_hint"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="18sp"
-            android:text="@string/exit_hint"
-            android:layout_gravity="center_horizontal"/>
+        <!-- 第二行：紧急求助 + 我的设置 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
 
+            <!-- 紧急求助按钮 -->
+            <Button
+                android:id="@+id/btn_emergency"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_margin="8dp"
+                android:text="紧急求助"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:background="@drawable/button_danger"
+                android:textColor="#FFFFFF"
+                android:contentDescription="紧急求助按钮"/>
+
+            <!-- 我的设置按钮 -->
+            <Button
+                android:id="@+id/btn_settings"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_margin="8dp"
+                android:text="我的设置"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:background="@drawable/button_settings"
+                android:textColor="#FFFFFF"
+                android:contentDescription="设置按钮"/>
+        </LinearLayout>
     </LinearLayout>
 
-</androidx.constraintlayout.widget.ConstraintLayout>
+    <View
+        android:id="@+id/bottom_spacer"
+        android:layout_width="match_parent"
+        android:layout_height="20dp"
+        android:layout_alignParentBottom="true"/>
+
+    <!-- 设置全屏浮层（无按钮，全屏手势操作） -->
+    <FrameLayout
+        android:id="@+id/settings_fullscreen"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#DD000000"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+
+        <!-- 设置内容区域 -->
+        <LinearLayout
+            android:id="@+id/settings_content"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="40dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="设置模式"
+                android:textSize="32sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="40dp"/>
+
+            <!-- 语速显示 -->
+            <TextView
+                android:id="@+id/tv_speed_display"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="语速：1.0倍"
+                android:textSize="36sp"
+                android:textColor="#FFFFFF"
+                android:gravity="center"
+                android:padding="30dp"
+                android:layout_marginBottom="20dp"/>
+
+            <!-- 语言显示 -->
+            <TextView
+                android:id="@+id/tv_language_display"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="语言：中文"
+                android:textSize="36sp"
+                android:textColor="#FFFFFF"
+                android:gravity="center"
+                android:padding="30dp"
+                android:layout_marginBottom="20dp"/>
+
+            <!-- 播报间隔显示 -->
+            <TextView
+                android:id="@+id/tv_pace_display"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="播报间隔：3秒"
+                android:textSize="36sp"
+                android:textColor="#FFFFFF"
+                android:gravity="center"
+                android:padding="30dp"
+                android:layout_marginBottom="40dp"/>
+
+            <!-- 操作提示 -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="上下滑动：调节语速\n左右滑动：切换语言\n双击屏幕：退出设置"
+                android:textSize="20sp"
+                android:textColor="#CCCCCC"
+                android:gravity="center"
+                android:lineSpacingMultiplier="1.5"/>
+        </LinearLayout>
+    </FrameLayout>
+
+</RelativeLayout>

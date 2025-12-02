@@ -3,16 +3,19 @@ package com.example.indoornavblind.factory;
 import android.content.Context;
 import com.example.indoornavblind.service.LocationService;
 import com.example.indoornavblind.service.NavigationService;
-import com.example.indoornavblind.service.SpeechRecognizerService; // 新增导入
+import com.example.indoornavblind.service.C_SpeechRecognizerService;
 import com.example.indoornavblind.service.VoiceService;
 import com.example.indoornavblind.service.WiFiScannerService;
-import com.example.indoornavblind.service.impl.KnnLocationService;
-import com.example.indoornavblind.service.impl.PathNavigationService;
-import com.example.indoornavblind.service.TextToSpeechService;
-import com.example.indoornavblind.service.WiFiScannerServiceImpl;
+import com.example.indoornavblind.service.impl.L_KnnLocationService;
+import com.example.indoornavblind.service.impl.L_PathNavigationService;
+import com.example.indoornavblind.service.C_TextToSpeechService;
+import com.example.indoornavblind.service.L_WiFiScannerServiceImpl;
 
+/**
+ * 服务工厂 - 修复版
+ * 解决所有构造函数参数问题
+ */
 public class ServiceFactory {
-    // 单例模式（已有代码不变）
     private static ServiceFactory instance;
     private Context context;
 
@@ -27,31 +30,42 @@ public class ServiceFactory {
         return instance;
     }
 
-    // 已有方法不变（语音、WiFi、定位、导航）
+    /**
+     * 创建语音服务 - 修复：传入Context参数
+     */
     public VoiceService createVoiceService() {
-        VoiceService service = new TextToSpeechService();
-        service.init(context);
-        return service;
+        return new C_TextToSpeechService(context);  // ✅ 传入context
     }
 
+    /**
+     * 创建WiFi扫描服务
+     */
     public WiFiScannerService createWiFiScannerService() {
-        WiFiScannerService service = new WiFiScannerServiceImpl();
+        WiFiScannerService service = new L_WiFiScannerServiceImpl();
         service.init(context);
         return service;
     }
 
+    /**
+     * 创建定位服务
+     */
     public LocationService createLocationService() {
-        return new KnnLocationService(createWiFiScannerService());
+        return new L_KnnLocationService(createWiFiScannerService());
     }
 
+    /**
+     * 创建导航服务
+     */
     public NavigationService createNavigationService() {
-        return new PathNavigationService();
+        return new L_PathNavigationService();
     }
 
-    // 新增：创建语音识别服务的方法（解决第一个错误）
-    public SpeechRecognizerService createSpeechRecognizerService() {
-        SpeechRecognizerService service = new SpeechRecognizerService();
-        service.init(context); // 初始化服务（需在SpeechRecognizerService中实现init方法）
+    /**
+     * 创建语音识别服务 - 修复：使用init方法初始化Context
+     */
+    public C_SpeechRecognizerService createSpeechRecognizerService() {
+        C_SpeechRecognizerService service = new C_SpeechRecognizerService();  // ✅ 使用无参构造函数
+        service.init(context);  // ✅ 通过init方法传入context
         return service;
     }
 }
