@@ -25,7 +25,9 @@ public class App extends Application {
     private SharedPreferences prefs;
 
     // 配置需要导入的指纹文件（确保文件名和路径正确）
+
     private static final String[] FINGERPRINT_FILES = {"fingerprint_db.json","3a.json","26.json","test.json"};
+
 
     @Override
     public void onCreate() {

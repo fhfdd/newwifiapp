@@ -115,6 +115,39 @@
                 android:textColor="#FFFFFF"
                 android:contentDescription="设置按钮"/>
         </LinearLayout>
+        
+        <!-- 第三行：发送位置 + WhatsApp 联系 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_send_location"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_margin="8dp"
+                android:text="发送位置"
+                android:textSize="20sp"
+                android:background="@drawable/button_secondary"
+                android:textColor="#FFFFFF"
+                android:contentDescription="发送当前位置到联系人"/>
+
+            <Button
+                android:id="@+id/btn_whatsapp"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_margin="8dp"
+                android:text="联系 WhatsApp"
+                android:textSize="20sp"
+                android:background="@drawable/button_secondary"
+                android:textColor="#FFFFFF"
+                android:contentDescription="通过 WhatsApp 联系"/>
+
+        </LinearLayout>
     </LinearLayout>
 
     <View
