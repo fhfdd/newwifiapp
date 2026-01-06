@@ -254,4 +254,17 @@
   "pixelX": 743.0,
   "pixelY": 310.0,
   "zone": "A"
+},{
+  "filteredWifis": [
+    {
+      "bssid": "00:13:10:85:fe:01",
+      "rssi": -50,
+      "ssid": "TEST"
+    }],
+  "floor": 1,
+  "label": "test",
+  "path": "",
+  "pixelX": 743.0,
+  "pixelY": 310.0,
+  "zone": "A"
 }]

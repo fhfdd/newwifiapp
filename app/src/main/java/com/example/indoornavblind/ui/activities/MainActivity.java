@@ -26,6 +26,8 @@ import com.example.indoornavblind.util.PermissionUtil;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import com.example.indoornavblind.service.impl.LocalIntentEngine;
+import com.example.indoornavblind.service.impl.VoiceAssistantService;
 
 /**
  * 主Activity - 修复版
@@ -39,6 +41,9 @@ import java.util.Locale;
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     private static final long LONG_PRESS_DURATION = 800; // 长按800毫秒
+
+    // 语音助手
+    private VoiceAssistantService voiceAssistant;
 
     // 服务
     private VoiceService voiceService;
@@ -123,6 +128,127 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         });
+        // ========== 初始化语音助手 ==========
+        voiceAssistant = new VoiceAssistantService(this);
+        voiceAssistant.init(voiceService, new VoiceAssistantService.VoiceAssistantCallback() {
+            @Override
+            public void onNavigateIntent(String destination) {
+                destinationName = destination;
+                hasDestination = true;
+                speak("正在导航到" + destination, speechSpeed);
+                startNavigation(destination);
+            }
+
+            @Override
+            public void onLocateIntent() {
+                startLocation();
+            }
+
+            @Override
+            public void onQueryLocationIntent() {
+                if (currentPosition != null) {
+                    speak("您当前在" + currentPosition.getLabel(), speechSpeed);
+                } else {
+                    speak("当前位置未知，请先定位", speechSpeed);
+                }
+            }
+
+            @Override
+            public void onQueryNearbyIntent() {
+                if (currentPosition != null) {
+                    announceNearbyPOIs(currentPosition);
+                } else {
+                    speak("请先定位", speechSpeed);
+                }
+            }
+
+            @Override
+            public void onQueryProgressIntent() {
+                if (navigationService.isNavigating()) {
+                    String progress = navigationService.getNavigationProgress();
+                    speak(progress, speechSpeed);
+                } else {
+                    speak("当前没有进行中的导航", speechSpeed);
+                }
+            }
+
+            @Override
+            public void onStartNavigationIntent() {
+                if (hasDestination && destinationName != null) {
+                    startNavigation(destinationName);
+                } else {
+                    speak("请先设置目的地", speechSpeed);
+                }
+            }
+
+            @Override
+            public void onStopNavigationIntent() {
+                if (navigationService.isNavigating()) {
+                    navigationService.stopNavigation();
+                } else {
+                    speak("当前没有进行中的导航", speechSpeed);
+                }
+            }
+
+            @Override
+            public void onRepeatIntent() {
+                if (!lastSpokenText.isEmpty()) {
+                    speak(lastSpokenText, speechSpeed);
+                }
+            }
+
+            @Override
+            public void onHelpIntent(String helpText) {
+                speak(helpText, speechSpeed);
+            }
+
+            @Override
+            public void onSettingsIntent() {
+                enterSettingsMode();
+            }
+
+            @Override
+            public void onSpeedUpIntent() {
+                adjustSpeed(SPEED_STEP);
+            }
+
+            @Override
+            public void onSpeedDownIntent() {
+                adjustSpeed(-SPEED_STEP);
+            }
+
+            @Override
+            public void onEmergencyIntent() {
+                speak("紧急求助已发送", speechSpeed);
+                vibrate(1000);
+            }
+
+            @Override
+            public void onUnknownIntent(String rawText) {
+                // 未识别的指令，已在VoiceAssistantService中播报提示
+            }
+
+            @Override
+            public void onListeningStarted() {
+                updateDisplay("正在听...");
+                vibrate(50);
+            }
+
+            @Override
+            public void onListeningStopped() {
+                // 监听结束
+            }
+
+            @Override
+            public void onRecognitionResult(String text) {
+                updateDisplay("识别到: " + text);
+            }
+
+            @Override
+            public void onError(String errorMsg) {
+                // 错误已在VoiceAssistantService中处理
+            }
+        });
 
         initSpeechListener();
     }
@@ -158,9 +284,22 @@ public class MainActivity extends AppCompatActivity {
                 speak("请先退出设置模式", speechSpeed);
                 return;
             }
-            speak("请说出您的指令", speechSpeed);
-            vibrate(100);
-            speechService.startListening();
+
+            if (voiceAssistant.hasNetwork()) {
+                speak("请说出您的指令", speechSpeed);
+                vibrate(100);
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    voiceAssistant.startListening();
+                }, 800);
+            } else {
+                // 离线模式：直接处理输入框文本
+                String input = etVoiceSimulate.getText().toString().trim();
+                if (!input.isEmpty()) {
+                    voiceAssistant.processText(input);
+                } else {
+                    speak("网络不可用，请在输入框输入指令", speechSpeed);
+                }
+            }
         });
 
         // 4. 设置按钮
@@ -705,6 +844,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (voiceAssistant != null) voiceAssistant.destroy();
         if (voiceService != null) voiceService.shutdown();
         if (speechService != null) speechService.destroy();
         if (navigationService != null) navigationService.stopNavigation();
