@@ -2,34 +2,32 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- 必要权限：定位、WiFi、语音、网络 -->
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- 必需权限 -->
+    <!-- 语音识别 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- 网络相关 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- WiFi 定位 -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- 存储权限（Vosk 模型下载需要） -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
+    <!-- 震动权限 -->
     <uses-permission android:name="android.permission.VIBRATE" />
-    <!-- 🆕 添加 Android 6.0+ 必需的权限 -->
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- 需要拨打电话（直接拨打 ACTION_CALL） -->
-    <uses-permission android:name="android.permission.CALL_PHONE" />
 
-    <uses-permission android:name="android.permission.CALL_PHONE" />
-
-    <!-- 🆕 针对旧设备的兼容性声明 -->
-    <uses-feature android:name="android.hardware.wifi" android:required="true" />
-
-    <!-- 适配盲人用户：启用触摸浏览 -->
-    <uses-feature android:name="android.software.touchscreen" android:required="false" />
-    <uses-feature android:name="android.hardware.audio.output" android:required="true" />
-
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Android 11+ 存储权限 -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
 
     <application
-        android:name=".App"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -38,24 +36,21 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.IndoorNavBlind"
-        android:accessibilityFeedbackType="feedbackSpoken"
+        android:requestLegacyExternalStorage="true"
         tools:targetApi="31">
 
-        <!-- 主界面 -->
         <activity
-            android:name="com.example.indoornavblind.ui.activities.MainActivity"
+            android:name=".ui.activities.MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.IndoorNavBlind.NoActionBar"
-            android:windowSoftInputMode="stateHidden">
+            android:screenOrientation="portrait">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
 
-        <!-- 设置界面（备用，当前集成在MainActivity） -->
-        <activity
-            android:name="com.example.indoornavblind.ui.activities.R_SettingsActivity"
-            android:exported="false" />
+        <!-- 其他 Activity 配置 -->
+
     </application>
+
 </manifest>
