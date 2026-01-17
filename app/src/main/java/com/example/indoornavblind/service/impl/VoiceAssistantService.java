@@ -124,21 +124,6 @@ public class VoiceAssistantService {
                     }
                 });
 
-                // 等待模型加载完成
-                int waitCount = 0;
-                while (!voskRecognizer.isInitialized() && waitCount < 50) {
-                    Thread.sleep(100);
-                    waitCount++;
-                }
-
-                if (voskRecognizer.isInitialized()) {
-                    voskInitialized = true;
-                    Log.d(TAG, "✓ Vosk 离线识别初始化完成");
-                    notifyStatus("Vosk 离线模式已就绪");
-                } else {
-                    Log.w(TAG, "Vosk 初始化超时");
-                }
-
             } catch (Exception e) {
                 Log.e(TAG, "Vosk 初始化失败", e);
                 voskInitialized = false;
@@ -327,9 +312,6 @@ public class VoiceAssistantService {
      * 停止语音识别
      */
     public void stopListening() {
-        if (voskRecognizer != null && voskRecognizer.isListening()) {
-            voskRecognizer.stopListening();
-        }
         if (googleRecognizer != null) {
             googleRecognizer.stopListening();
         }

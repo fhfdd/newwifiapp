@@ -12,4 +12,6 @@ public interface NavigationService {
     void setTarget(String target);
     List<PathEntity> calculatePath();
     String getNextStepInstruction();
+
+    void stopNavigation();
 }

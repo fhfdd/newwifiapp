@@ -49,6 +49,11 @@ public class L_PathNavigationService implements NavigationService {
         );
     }
 
+    @Override
+    public void stopNavigation() {
+
+    }
+
     public void setLocale(Locale locale) {
         this.currentLocale = locale;
     }
