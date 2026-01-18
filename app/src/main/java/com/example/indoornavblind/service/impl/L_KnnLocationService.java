@@ -28,7 +28,7 @@ public class L_KnnLocationService implements LocationService {
     private final WiFiScannerService wifiScanner;
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
     private Context context;
-    private static final int KNN_TOP_N = 3; // 可配置的K值
+    private static final int KNN_TOP_N = 5; // 可配置的K值
 
     // 构造注入依赖（依赖抽象而非具体）
     public L_KnnLocationService(WiFiScannerService wifiScanner) {

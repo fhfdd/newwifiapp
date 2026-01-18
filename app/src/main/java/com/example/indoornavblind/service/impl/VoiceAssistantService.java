@@ -36,6 +36,7 @@ public class VoiceAssistantService {
     private LocalIntentEngine intentEngine;
     private VoiceService voiceService;
 
+
     // 回调
     private VoiceAssistantCallback callback;
 
