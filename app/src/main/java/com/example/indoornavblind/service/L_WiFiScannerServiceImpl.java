@@ -99,7 +99,7 @@ public class L_WiFiScannerServiceImpl implements WiFiScannerService {
 
             Log.d("WiFiScanner", "扫描到的WiFi数量：" + scans.size());
             for (ScanResult scan : scans) {
-                if (scan.BSSID == null || scan.BSSID.isEmpty() || scan.level < -70) {
+                if (scan.BSSID == null || scan.BSSID.isEmpty() || scan.level < -80) {
                     Log.w("WiFiScanner", "过滤无效WiFi（BSSID为空）");
                     continue;
                 }
