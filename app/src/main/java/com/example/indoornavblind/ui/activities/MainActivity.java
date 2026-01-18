@@ -1,5 +1,6 @@
 package com.example.indoornavblind.ui.activities;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -390,6 +391,11 @@ public class MainActivity extends AppCompatActivity {
         });
 
         btnSettings.setOnClickListener(v -> enterSettingsMode());
+        Button btnSettings = findViewById(R.id.btn_settings);
+        btnSettings.setOnClickListener(v -> {
+            Intent intent = new Intent(this, R_SettingsActivity.class);
+            startActivity(intent);
+        });
 
         btnEmergency.setOnClickListener(v -> {
             speak("紧急求助已发送", speechSpeed);
