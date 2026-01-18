@@ -1,63 +1,17 @@
-plugins {
-    id 'com.android.application'
-}
-
-android {
-    namespace 'com.example.indoornavblind'
-    compileSdk 34
-
-    defaultConfig {
-        applicationId "com.example.indoornavblind"
-        minSdk 23
-        targetSdk 34
-        versionCode 1
-        versionName "1.0"
-
-        // ✅ 修改点：加入 x86 和 x86_64，适配电脑模拟器
-        ndk {
-            abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'
-        }
+// 项目级 build.gradle
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
     }
-
-    buildTypes {
-        release {
-            minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-        }
-    }
-
-    compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
-    }
-
-    // 防止压缩模型文件
-    aaptOptions {
-        noCompress "zip", "model"
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.10.1'
     }
 }
 
-// ✅ 强制策略：统一使用 JNA 5.13.0，防止版本冲突导致的闪退
-configurations.all {
-    resolutionStrategy {
-        force 'net.java.dev.jna:jna:5.13.0'
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
     }
-}
-
-dependencies {
-    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    implementation 'com.squareup.retrofit2:retrofit:2.9.0'
-    implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
-    implementation 'androidx.appcompat:appcompat:1.6.1'
-    implementation 'com.google.android.material:material:1.11.0'
-    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
-    implementation 'androidx.room:room-runtime:2.6.1'
-    annotationProcessor 'androidx.room:room-compiler:2.6.1'
-    implementation 'com.google.code.gson:gson:2.10.1'
-
-    // Vosk 核心
-    implementation 'com.alphacephei:vosk-android:0.3.47'
-
-    // ✅ 必须保留：x86 模拟器通常缺少这个库，手动加上防止 UnsatisfiedLinkError
-    implementation 'net.java.dev.jna:jna:5.13.0@aar'
 }
