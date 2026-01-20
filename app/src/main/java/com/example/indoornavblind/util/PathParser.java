@@ -67,7 +67,11 @@ public class PathParser {
         }
     }
 
-    public static List<PathEntity> getFullPath(String start, String end) {
+    /**
+     * 获取指定楼层的完整路径
+     */
+
+    public static List<PathEntity> getFullPath(String start, String end, int floor) {
         if (!isInitialized || allPaths.isEmpty()) {
             return Collections.emptyList();
         }
@@ -75,27 +79,36 @@ public class PathParser {
         Queue<String> queue = new LinkedList<>();
         Map<String, String> previous = new HashMap<>();
         Set<String> visited = new HashSet<>();
-        
+
         queue.offer(start);
         visited.add(start);
-        
+
         while (!queue.isEmpty()) {
             String current = queue.poll();
-            
+
             if (current.equals(end)) {
                 return reconstructPath(previous, start, end);
             }
-            
+
             for (PathEntity path : allPaths) {
-                if (path.getStartLabel_cn().equals(current) && 
-                    !visited.contains(path.getEndLabel_cn())) {
+                // 添加楼层过滤
+                int pathFloor = 0;
+                try {
+                    pathFloor = Integer.parseInt(String.valueOf(path.getFloor()));
+                } catch (Exception e) {
+                    // 忽略非数字楼层
+                }
+
+                if (pathFloor == floor &&
+                        path.getStartLabel_cn().equals(current) &&
+                        !visited.contains(path.getEndLabel_cn())) {
                     queue.offer(path.getEndLabel_cn());
                     visited.add(path.getEndLabel_cn());
                     previous.put(path.getEndLabel_cn(), current);
                 }
             }
         }
-        
+
         return Collections.emptyList();
     }
 

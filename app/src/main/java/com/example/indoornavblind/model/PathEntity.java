@@ -10,7 +10,7 @@ public class PathEntity {
     private String endLabel_en;
     private String endLabel_yue;
     // 楼层（支持跨层，如"1→2"）
-    private String floor;
+    private int floor;
     // 优先级（数字越小，路径越优先）
     private int priority;
     // 多语言距离
@@ -30,7 +30,7 @@ public class PathEntity {
 
     // Getter & Setter（全部补充）
 
-    public double getDistanceMeters() { return distanceMeters; }
+//    public double getDistanceMeters() { return distanceMeters; }
     public void setDistanceMeters(double distanceMeters) { this.distanceMeters = distanceMeters; }
     public String getStartLabel_cn() { return startLabel_cn; }
     public void setStartLabel_cn(String startLabel_cn) { this.startLabel_cn = startLabel_cn; }
@@ -46,8 +46,9 @@ public class PathEntity {
     public String getEndLabel_yue() { return endLabel_yue; }
     public void setEndLabel_yue(String endLabel_yue) { this.endLabel_yue = endLabel_yue; }
 
-    public String getFloor() { return floor; }
-    public void setFloor(String floor) { this.floor = floor; }
+    public int getFloor() { return floor; }
+
+    public void setFloor(int floor) { this.floor = floor; }
     public int getPriority() { return priority; }
     public void setPriority(int priority) { this.priority = priority; }
 
@@ -71,4 +72,25 @@ public class PathEntity {
     public void setNextPoint_en(String nextPoint_en) { this.nextPoint_en = nextPoint_en; }
     public String getNextPoint_yue() { return nextPoint_yue; }
     public void setNextPoint_yue(String nextPoint_yue) { this.nextPoint_yue = nextPoint_yue; }
+
+    /**
+     * 获取距离数值（米）
+     */
+    public double getDistanceMeters() {
+        try {
+            String numStr = distance_cn.replaceAll("[^0-9.]", "");
+            return Double.parseDouble(numStr);
+        } catch (Exception e) {
+            return 3.0; // 默认3米
+        }
+    }
+
+    /**
+     * 根据步长计算所需步数
+     */
+    public int getStepsRequired(double stepLength) {
+        return (int) Math.ceil(getDistanceMeters() / stepLength);
+    }
+
+
 }

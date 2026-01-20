@@ -147,9 +147,26 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
     // 步长配置
     private double stepLength = DEFAULT_STEP_LENGTH;
 
+    private Context appContext;
+
     public CompassEnhancedNavigationService(VoiceService voiceService, LocationService locationService) {
         this.voiceService = voiceService;
         this.locationService = locationService;
+    }
+
+    /**
+     * 从SharedPreferences加载用户设置的步长
+     */
+    public void loadUserSettings(Context context) {
+        this.appContext = context;
+        android.content.SharedPreferences prefs = context.getSharedPreferences("UserSettings", Context.MODE_PRIVATE);
+        String stepLengthStr = prefs.getString("stepLength", "0.65");
+        try {
+            this.stepLength = Double.parseDouble(stepLengthStr);
+            Log.d(TAG, "用户步长设置: " + this.stepLength + "米");
+        } catch (NumberFormatException e) {
+            this.stepLength = DEFAULT_STEP_LENGTH;
+        }
     }
 
     /**
@@ -556,7 +573,7 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         if (currentPosition == null || targetDestination == null) {
             return List.of();
         }
-        fullPath = PathParser.getFullPath(currentPosition.getLabel(), targetDestination);
+        fullPath = PathParser.getFullPath(currentPosition.getLabel(), targetDestination, currentPosition.getFloor());
         currentStepIndex = 0;
         accumulatedDistance = 0.0;
         arrivalConfirmCount = 0;

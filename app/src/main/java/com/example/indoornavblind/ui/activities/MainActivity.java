@@ -313,6 +313,7 @@ public class MainActivity extends AppCompatActivity {
         // 6. 初始化导航服务 - 传入ttsService而不是voiceService
         navigationService = new CompassEnhancedNavigationService(ttsService, locationService);
         navigationService.initSensors(this);
+        navigationService.loadUserSettings(this);
 
         // 7. 设置导航回调（保持你的原有逻辑）
         navigationService.setPositionUpdateCallback(newPosition -> {
