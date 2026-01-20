@@ -11,6 +11,7 @@ public class LocationWithWifis {
     private double pixelY;
     private String zone;
     private List<WiFiData> filteredWifis; // 对应JSON中的"wifis"数组
+    private List<WiFiData> wifis;
 
     // 必须提供完整的Getter和Setter
     public int getFloor() {
@@ -62,9 +63,8 @@ public class LocationWithWifis {
     }
 
     public List<WiFiData> getWifis() {
-        return filteredWifis;
+        return wifis != null ? wifis : filteredWifis;
     }
-
     public void setWifis(List<WiFiData> filteredWifis) {
         this.filteredWifis = filteredWifis;
     }
