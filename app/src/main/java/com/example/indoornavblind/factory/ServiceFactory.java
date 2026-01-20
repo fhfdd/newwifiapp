@@ -42,7 +42,6 @@ public class ServiceFactory {
 
     private ServiceFactory(Context context) {
         this.context = context.getApplicationContext();
-        prepareVoskModels(); // 提前准备模型
     }
 
     public static synchronized ServiceFactory getInstance(Context context) {
@@ -50,121 +49,6 @@ public class ServiceFactory {
             instance = new ServiceFactory(context);
         }
         return instance;
-    }
-
-    /**
-     * 准备Vosk模型文件（关键步骤）
-     */
-    private void prepareVoskModels() {
-        new Thread(() -> {
-            Log.d(TAG, "开始准备Vosk模型文件...");
-
-            // 模型文件列表
-            String[] modelAssets = {
-                    "vosk-model-small-cn-0.22.zip",
-                    "vosk-model-small-en-us-0.15.zip"
-            };
-
-            boolean allSuccess = true;
-
-            for (String modelAsset : modelAssets) {
-                // 检查文件是否存在
-                if (!assetExists(modelAsset)) {
-                    Log.e(TAG, "❌ Assets中缺少模型文件: " + modelAsset);
-                    allSuccess = false;
-                    continue;
-                }
-
-                // 确定目标目录
-                String langCode = modelAsset.contains("cn") ? "zh-CN" : "en-US";
-                File targetDir = new File(context.getFilesDir(), "model_" + langCode);
-
-                // 如果目录已存在且非空，跳过解压
-                if (targetDir.exists() && targetDir.isDirectory() &&
-                        targetDir.list() != null && targetDir.list().length > 10) {
-                    Log.d(TAG, "✅ 模型已存在: " + langCode);
-                    continue;
-                }
-
-                // 解压模型
-                Log.d(TAG, "解压模型: " + modelAsset);
-                if (!unpackModel(modelAsset, targetDir)) {
-                    Log.e(TAG, "❌ 模型解压失败: " + modelAsset);
-                    allSuccess = false;
-                }
-            }
-
-            isVoskModelPrepared = allSuccess;
-            if (isVoskModelPrepared) {
-                Log.d(TAG, "✅ Vosk模型准备完成");
-            } else {
-                Log.e(TAG, "❌ Vosk模型准备失败，语音识别功能将受限");
-            }
-        }).start();
-    }
-
-    /**
-     * 检查Assets文件是否存在
-     */
-    private boolean assetExists(String filename) {
-        try {
-            InputStream is = context.getAssets().open(filename);
-            is.close();
-            return true;
-        } catch (IOException e) {
-            return false;
-        }
-    }
-
-    /**
-     * 解压模型文件
-     */
-    private boolean unpackModel(String assetName, File targetDir) {
-        try {
-            if (targetDir.exists()) {
-                deleteDirectory(targetDir);
-            }
-            targetDir.mkdirs();
-
-            InputStream is = context.getAssets().open(assetName);
-            ZipInputStream zis = new ZipInputStream(is);
-            ZipEntry entry;
-
-            while ((entry = zis.getNextEntry()) != null) {
-                File file = new File(targetDir, entry.getName());
-
-                if (entry.isDirectory()) {
-                    file.mkdirs();
-                } else {
-                    File parent = file.getParentFile();
-                    if (!parent.exists()) parent.mkdirs();
-
-                    FileOutputStream fos = new FileOutputStream(file);
-                    byte[] buffer = new byte[4096];
-                    int len;
-                    while ((len = zis.read(buffer)) > 0) {
-                        fos.write(buffer, 0, len);
-                    }
-                    fos.close();
-                }
-                zis.closeEntry();
-            }
-            zis.close();
-            return true;
-        } catch (IOException e) {
-            Log.e(TAG, "解压失败: " + assetName, e);
-            return false;
-        }
-    }
-
-    private void deleteDirectory(File dir) {
-        if (dir.isDirectory()) {
-            File[] children = dir.listFiles();
-            if (children != null) {
-                for (File child : children) deleteDirectory(child);
-            }
-        }
-        dir.delete();
     }
 
     /**
@@ -254,11 +138,8 @@ public class ServiceFactory {
         return service;
     }
 
-    /**
-     * 检查Vosk模型是否准备就绪
-     */
     public boolean isVoskReady() {
-        return isVoskModelPrepared && voskService != null && voskService.isInitialized();
+        return voskService != null && voskService.isInitialized();
     }
 
     /**
