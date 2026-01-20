@@ -8,10 +8,11 @@ import androidx.room.RoomDatabase;
 import com.example.indoornavblind.App;
 import com.example.indoornavblind.database.entity.PositionEntity;
 import com.example.indoornavblind.database.entity.WiFiFingerprintEntity;
+import com.example.indoornavblind.database.entity.NavigationNodeEntity;
 
 @Database(
-        entities = {PositionEntity.class, WiFiFingerprintEntity.class},
-        version = 3,
+        entities = {PositionEntity.class, WiFiFingerprintEntity.class, NavigationNodeEntity.class},
+        version = 4,
         exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {
@@ -22,6 +23,7 @@ public abstract class AppDatabase extends RoomDatabase {
     // DAO获取方法
     public abstract PositionDao positionDao();
     public abstract WiFiFingerprintDao wifiFingerprintDao();
+    public abstract NavigationNodeDao navigationNodeDao();
 
     // 单例获取（自动使用Application上下文）
     public static AppDatabase getInstance() {
@@ -30,10 +32,11 @@ public abstract class AppDatabase extends RoomDatabase {
                 if (instance == null) {
                     // 直接使用Application的上下文，避免内存泄漏
                     instance = Room.databaseBuilder(
-                            App.getInstance().getApplicationContext(),
-                            AppDatabase.class,
-                            DB_NAME
-                    ).build();
+                                    App.getInstance().getApplicationContext(),
+                                    AppDatabase.class,
+                                    DB_NAME
+                            ).fallbackToDestructiveMigration()
+                            .build();
                 }
             }
         }

@@ -60,6 +60,7 @@ public class VoiceAssistantService {
         // 意图回调
         void onNavigateIntent(String destination);
         void onLocateIntent();
+        void onSetLocationIntent(String location);  // 手动设置位置
         void onQueryLocationIntent();
         void onQueryNearbyIntent();
         void onQueryProgressIntent();
@@ -363,6 +364,15 @@ public class VoiceAssistantService {
 
                 case LOCATE:
                     callback.onLocateIntent();
+                    break;
+
+                case SET_LOCATION:
+                    if (result.destination != null) {
+                        callback.onSetLocationIntent(result.destination);
+                    } else {
+                        speak("请问您在哪里？例如：我在3A教室");
+                        callback.onUnknownIntent(result.rawText);
+                    }
                     break;
 
                 case QUERY_LOCATION:
