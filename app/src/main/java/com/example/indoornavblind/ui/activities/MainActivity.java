@@ -14,6 +14,9 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.indoornavblind.R;
+import com.example.indoornavblind.database.AppDatabase;
+import com.example.indoornavblind.database.NavigationNodeDao;
+import com.example.indoornavblind.database.entity.NavigationNodeEntity;
 import com.example.indoornavblind.model.PathEntity;
 import com.example.indoornavblind.model.Position;
 import com.example.indoornavblind.service.LocationService;
@@ -24,6 +27,7 @@ import com.example.indoornavblind.service.PathStorageService;
 import com.example.indoornavblind.service.impl.CompassEnhancedNavigationService;
 import com.example.indoornavblind.service.impl.L_KnnLocationService;
 import com.example.indoornavblind.service.L_WiFiScannerServiceImpl;
+import com.example.indoornavblind.util.NavigationDataInitializer;
 import com.example.indoornavblind.util.PathParser;
 import com.example.indoornavblind.util.PermissionUtil;
 import com.example.indoornavblind.factory.ServiceFactory;
@@ -93,6 +97,18 @@ public class MainActivity extends AppCompatActivity {
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             speak("欢迎使用完全离线盲人室内导航系统。单击按钮开始定位", speechSpeed);
         }, 1000);
+
+        new Thread(() -> {
+            AppDatabase database = AppDatabase.getInstance();
+            NavigationNodeDao dao = database.navigationNodeDao();
+
+            // 检查是否已有数据
+            List<NavigationNodeEntity> existingData = dao.getAllNodes();
+            if (existingData == null || existingData.isEmpty()) {
+                NavigationDataInitializer.initializeSampleData(dao);
+                Log.d("MainActivity", "Navigation data initialized");
+            }
+        }).start();
     }
 
     private void processVoiceCommand(String command) {
@@ -121,6 +137,33 @@ public class MainActivity extends AppCompatActivity {
                 hasDestination = true;
                 speak("正在导航到" + destination, speechSpeed);
                 startNavigation(destination);
+                return;
+            }
+        }
+
+        // 1.5 手动设置位置（我在XX）- WiFi定位失败时的备用方案
+        if (cmd.contains("我在") || cmd.contains("我现在在") || cmd.contains("起点是") ||
+                cmd.contains("i am at") || cmd.contains("i'm at")) {
+
+            String location = cmd
+                    .replace("我在", "")
+                    .replace("我现在在", "")
+                    .replace("起点是", "")
+                    .replace("i am at", "")
+                    .replace("i'm at", "")
+                    .trim();
+
+            if (!location.isEmpty()) {
+                Position pos = findPositionByName(location);
+                if (pos != null) {
+                    currentPosition = pos;
+                    isLocated = true;
+                    navigationService.setCurrentPosition(pos);
+                    speak("已手动设置位置为" + pos.getLabel() + "。您可以说去哪里开始导航", speechSpeed);
+                    updateDisplay("当前位置：" + pos.getLabel());
+                } else {
+                    speak("未找到位置：" + location + "。请说正确的位置名称", speechSpeed);
+                }
                 return;
             }
         }

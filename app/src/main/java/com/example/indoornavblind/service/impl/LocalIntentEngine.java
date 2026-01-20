@@ -31,6 +31,7 @@ public class LocalIntentEngine {
     public enum Intent {
         NAVIGATE,           // 导航到某地
         LOCATE,             // 定位当前位置
+        SET_LOCATION,       // 手动设置位置（我在XX）
         QUERY_LOCATION,     // 查询当前位置
         QUERY_DESTINATION,  // 查询目的地
         QUERY_NEARBY,       // 查询附近
@@ -80,6 +81,11 @@ public class LocalIntentEngine {
     // 定位相关关键词
     private static final String[] LOCATE_KEYWORDS = {
             "定位", "重新定位", "刷新位置", "更新位置", "locate"
+    };
+
+    // 手动设置位置关键词（我在XX）
+    private static final String[] SET_LOCATION_KEYWORDS = {
+            "我在", "我现在在", "我的位置是", "起点是", "从这里", "i am at", "i'm at", "start from"
     };
 
     // 查询位置关键词
@@ -215,6 +221,12 @@ public class LocalIntentEngine {
             return new IntentResult(Intent.LOCATE, null, 0.9f, text);
         }
 
+        // 检查手动设置位置意图（我在XX）
+        IntentResult setLocResult = parseSetLocationIntent(normalizedText, text);
+        if (setLocResult != null) {
+            return setLocResult;
+        }
+
         if (matchKeywords(normalizedText, REPEAT_KEYWORDS)) {
             return new IntentResult(Intent.REPEAT, null, 0.9f, text);
         }
@@ -275,6 +287,43 @@ public class LocalIntentEngine {
         IntentResult result = new IntentResult(Intent.NAVIGATE, null, 0.5f, originalText);
         result.matchedKeyword = matchedKeyword;
         return result;
+    }
+
+    /**
+     * 解析手动设置位置意图（我在XX）
+     */
+    /**
+     * 解析设置位置意图（"我在XX"）
+     */
+    private IntentResult parseSetLocationIntent(String normalizedText, String originalText) {
+        String matchedKeyword = null;
+        for (String keyword : SET_LOCATION_KEYWORDS) {
+            if (normalizedText.contains(keyword)) {
+                matchedKeyword = keyword;
+                break;
+            }
+        }
+
+        if (matchedKeyword == null) {
+            return null;
+        }
+
+        // 提取位置
+        int keywordIndex = normalizedText.indexOf(matchedKeyword);
+        String afterKeyword = normalizedText.substring(keywordIndex + matchedKeyword.length()).trim();
+        String location = findDestination(afterKeyword);
+
+        if (location == null) {
+            location = findDestination(normalizedText);
+        }
+
+        if (location != null) {
+            IntentResult result = new IntentResult(Intent.SET_LOCATION, location, 0.95f, originalText);
+            result.matchedKeyword = matchedKeyword;
+            return result;
+        }
+
+        return null;
     }
 
     /**

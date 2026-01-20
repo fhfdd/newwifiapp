@@ -10,6 +10,7 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
 
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
     <!-- 🆕 添加 Android 6.0+ 必需的权限 -->
@@ -57,5 +58,9 @@
         <activity
             android:name="com.example.indoornavblind.ui.activities.R_SettingsActivity"
             android:exported="false" />
+        <activity
+            android:name=".ui.activities.VoiceNavigationActivity"
+            android:label="语音导航"
+            android:screenOrientation="portrait" />
     </application>
 </manifest>
