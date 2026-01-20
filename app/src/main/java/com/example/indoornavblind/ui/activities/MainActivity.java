@@ -84,8 +84,31 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+
         super.onCreate(savedInstanceState);
+
+        // 恢复语言设置
+        android.content.SharedPreferences prefs = getSharedPreferences("UserSettings", MODE_PRIVATE);
+        String langTag = prefs.getString("app_locale", null);
+        if (langTag != null) {
+            Locale locale = Locale.forLanguageTag(langTag);
+            if (locale.getLanguage().equals("en")) {
+                currentLanguage = VoskSpeechRecognizerService.Language.ENGLISH;
+            } else if (locale.toLanguageTag().equals("zh-HK")) {
+                currentLanguage = VoskSpeechRecognizerService.Language.CANTONESE;
+            } else {
+                currentLanguage = VoskSpeechRecognizerService.Language.CHINESE;
+            }
+        }
+        applyLocaleWithoutRecreate(currentLanguage.locale);
+
         setContentView(R.layout.activity_main);
+
+        android.content.SharedPreferences prefs2 = getSharedPreferences("UserSettings", MODE_PRIVATE);
+        boolean wasInSettings = prefs2.getBoolean("in_settings_mode", false);
+        if (wasInSettings) {
+            prefs2.edit().putBoolean("in_settings_mode", false).apply(); // 清除标记
+        }
 
         PathParser.init(this);
         PermissionUtil.requestAllPermissions(this);
@@ -94,9 +117,12 @@ public class MainActivity extends AppCompatActivity {
         initViews();
         initListeners();
 
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            speak("欢迎使用完全离线盲人室内导航系统。单击按钮开始定位", speechSpeed);
-        }, 1000);
+        if (wasInSettings) {
+            isInSettingsMode = true;
+            settingsFullscreen.setVisibility(View.VISIBLE);
+            updateSettingsDisplay();
+        }
+        
 
         new Thread(() -> {
             AppDatabase database = AppDatabase.getInstance();
@@ -196,12 +222,15 @@ public class MainActivity extends AppCompatActivity {
             }
         }
 
-        // 5. 语言切换
+// 5. 语言切换
         else if (cmd.contains("切换英文") || cmd.contains("switch to english") || cmd.contains("english")) {
             switchToLanguage(VoskSpeechRecognizerService.Language.ENGLISH);
         }
         else if (cmd.contains("切换中文") || cmd.contains("switch to chinese") || cmd.contains("chinese")) {
             switchToLanguage(VoskSpeechRecognizerService.Language.CHINESE);
+        }
+        else if (cmd.contains("切换粤语") || cmd.contains("粤语") || cmd.contains("cantonese")) {
+            switchToLanguage(VoskSpeechRecognizerService.Language.CANTONESE);
         }
 
         // 6. 帮助
@@ -754,25 +783,56 @@ public class MainActivity extends AppCompatActivity {
         }
 
         isSwitchingLanguage = true;
-        try {
-            currentLanguage = language;
+        currentLanguage = language;
 
-            // 使用工厂切换语言（同时切换TTS和Vosk）
+        // 1. 先更新TTS（不依赖Vosk）
+        if (ttsService != null && ttsService.isReady()) {
+            ttsService.setLanguage(language.locale);
+            ttsService.setSpeed(speechSpeed);
+        }
+
+        // 2. Vosk单独切换，失败不影响其他
+        try {
             if (serviceFactory != null) {
                 serviceFactory.switchLanguage(language);
             }
-
-            // 更新TTS语速和语言
-            if (ttsService != null && ttsService.isReady()) {
-                ttsService.setLanguage(language.locale);
-                ttsService.setSpeed(speechSpeed);
-            }
-
-            updateSettingsDisplay();
-            speak("已切换到" + language.displayName, speechSpeed);
-        } finally {
-            isSwitchingLanguage = false;
+        } catch (Exception e) {
+            Log.e(TAG, "Vosk切换失败，但不影响UI: " + e.getMessage());
         }
+
+        // 3. 先播报再recreate（否则recreate后speak会丢失）
+        String msg = "已切换到" + language.displayName;
+        if (ttsService != null && ttsService.isReady()) {
+            ttsService.speak(msg, speechSpeed);
+        }
+
+        // 4. 延迟更新UI，等播报完成
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            updateAppLocale(language.locale);
+            isSwitchingLanguage = false;
+        }, 1500);
+    }
+
+    private void updateAppLocale(Locale locale) {
+        getSharedPreferences("UserSettings", MODE_PRIVATE)
+                .edit()
+                .putString("app_locale", locale.toLanguageTag())
+                .putBoolean("in_settings_mode", isInSettingsMode)
+                .apply();
+
+        android.content.res.Resources res = getResources();
+        android.content.res.Configuration config = res.getConfiguration();
+        config.setLocale(locale);
+        res.updateConfiguration(config, res.getDisplayMetrics());
+
+        recreate();
+    }
+
+    private void applyLocaleWithoutRecreate(Locale locale) {
+        android.content.res.Resources res = getResources();
+        android.content.res.Configuration config = res.getConfiguration();
+        config.setLocale(locale);
+        res.updateConfiguration(config, res.getDisplayMetrics());
     }
 
     private void switchPace() {
@@ -800,18 +860,20 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        statusUpdateHandler.removeCallbacksAndMessages(null);
+        longPressHandler.removeCallbacksAndMessages(null);
 
-        // 使用工厂关闭所有服务
-        if (serviceFactory != null) {
-            serviceFactory.shutdown();
-        }
-
-        // 关闭导航
         if (navigationService != null) {
             navigationService.stopNavigation();
         }
 
-        // 清理Handler
-        statusUpdateHandler.removeCallbacksAndMessages(null);
+        // serviceFactory.shutdown() 内部会处理TTS，但可能已dead，用try包裹
+        try {
+            if (serviceFactory != null) {
+                serviceFactory.shutdown();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "关闭服务异常: " + e.getMessage());
+        }
     }
 }

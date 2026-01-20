@@ -404,7 +404,7 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
     private boolean stepProgressTriggered = false;
 
     /**
-     * 检查步数进度 - 基于步数触发下一步播报
+     * 检查步数进度 - 到达节点才播报下一步
      */
     private void checkStepProgress() {
         if (currentStepIndex >= fullPath.size() || !isNavigating) {
@@ -412,25 +412,30 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         }
 
         int stepsSinceStart = stepCount - stepCountAtStepStart;
-        double progressRatio = expectedStepsForCurrentSegment > 0
-                ? (double) stepsSinceStart / expectedStepsForCurrentSegment
-                : 0;
 
-        // 当步数达到90%时，认为到达节点，触发下一步播报
-        if (progressRatio >= 0.9 && !stepProgressTriggered && expectedStepsForCurrentSegment > 0) {
-            stepProgressTriggered = true;
-            Log.d(TAG, String.format("✓ 步数到达节点: %d/%d (%.0f%%)",
-                    stepsSinceStart, expectedStepsForCurrentSegment, progressRatio * 100));
+        // 当步数达到预期的90%时，认为到达当前节点，播报下一步
+        if (expectedStepsForCurrentSegment > 0 &&
+                stepsSinceStart >= expectedStepsForCurrentSegment * 0.9) {
 
-            // 取消定时播报，改为步数触发
+            Log.d(TAG, String.format("步数到达: %d/%d，切换到下一节点",
+                    stepsSinceStart, expectedStepsForCurrentSegment));
+
+            // 移除定时播报，改为步数触发
             navigationHandler.removeCallbacks(stepGuidanceRunnable);
 
-            // 延迟0.5秒后播报下一步（给用户反应时间）
-            navigationHandler.postDelayed(() -> {
-                if (isNavigating && currentStepIndex < fullPath.size()) {
-                    advanceToNextStep();
-                }
-            }, 500);
+            currentStepIndex++;
+            if (currentStepIndex < fullPath.size()) {
+                PathEntity nextStep = fullPath.get(currentStepIndex);
+                stepCountAtStepStart = stepCount;
+                expectedStepsForCurrentSegment = (int) Math.ceil(
+                        parseDistance(nextStep.getDistance_cn()) / stepLength);
+                hasTurnWarned = false;
+
+                announceCurrentStep(nextStep);
+            } else {
+                handleArrival();
+            }
+            return;
         }
 
         checkTurnWarningByTime();
@@ -687,45 +692,45 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
     }
 
     /**
-     * 开始分步引导（基于步数检测）
+     * 开始分步引导 - 步数优先，时间兜底
      */
     private void startStepByStepGuidance() {
-        stepGuidanceRunnable = new Runnable() {
-            @Override
-            public void run() {
-                // 备用定时器触发 - 仅在步数检测失效时使用
-                if (!isNavigating || currentStepIndex >= fullPath.size()) {
-                    return;
-                }
+        if (fullPath == null || fullPath.isEmpty() || currentStepIndex >= fullPath.size()) {
+            return;
+        }
 
-                Log.d(TAG, "备用定时器触发，步数检测可能失效");
-                advanceToNextStep();
+        PathEntity currentStep = fullPath.get(currentStepIndex);
+        announceCurrentStep(currentStep);
+
+        stepCountAtStepStart = stepCount;
+        double segmentDistance = parseDistance(currentStep.getDistance_cn());
+        expectedStepsForCurrentSegment = (int) Math.ceil(segmentDistance / stepLength);
+        hasTurnWarned = false;
+
+        // 超时兜底：如果步数检测失败，用时间兜底
+        stepGuidanceRunnable = () -> {
+            if (!isNavigating || currentStepIndex >= fullPath.size()) {
+                return;
             }
-        };
 
-        // 立即播报第一步
-        if (isNavigating && currentStepIndex < fullPath.size()) {
-            PathEntity firstStep = fullPath.get(currentStepIndex);
-            announceCurrentStep(firstStep);
-
+            // 超时兜底播报
             currentStepIndex++;
-            hasTurnWarned = false;
-            stepCountAtStepStart = stepCount;
-            stepProgressTriggered = false;
-
-            // 计算第一段的预期步数
-            double segmentDistance = parseDistance(firstStep.getDistance_cn());
-            expectedStepsForCurrentSegment = (int) Math.ceil(segmentDistance / stepLength);
-
             if (currentStepIndex < fullPath.size()) {
-                // 设置备用定时器（步数检测的1.5倍时间）
-                int fallbackInterval = (int) (expectedStepsForCurrentSegment * stepLength / WALKING_SPEED * 1000 * 1.5);
-                fallbackInterval = Math.max(fallbackInterval, baseIntervalMs);
-                navigationHandler.postDelayed(stepGuidanceRunnable, fallbackInterval);
+                PathEntity nextStep = fullPath.get(currentStepIndex);
+                stepCountAtStepStart = stepCount;
+                expectedStepsForCurrentSegment = (int) Math.ceil(
+                        parseDistance(nextStep.getDistance_cn()) / stepLength);
+                hasTurnWarned = false;
+
+                announceCurrentStep(nextStep);
+                navigationHandler.postDelayed(stepGuidanceRunnable, baseIntervalMs);
             } else {
                 handleArrival();
             }
-        }
+        };
+
+        // 设置超时兜底（步数检测可能失败）
+        navigationHandler.postDelayed(stepGuidanceRunnable, baseIntervalMs);
     }
 
     /**

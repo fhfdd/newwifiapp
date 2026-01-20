@@ -133,6 +133,8 @@ public class C_TextToSpeechService implements VoiceService {
 
         Log.d(TAG, "开始初始化TTS，第" + (initRetryCount + 1) + "次尝试");
 
+// 尝试获取可用的TTS引擎
+        String engine = getAvailableTtsEngine();
         tts = new TextToSpeech(context, status -> {
             isInitializing = false;
 
@@ -167,6 +169,44 @@ public class C_TextToSpeechService implements VoiceService {
 
         // 设置进度监听器
         setupUtteranceListener();
+    }
+
+    /**
+     * 获取可用的TTS引擎
+     */
+    private String getAvailableTtsEngine() {
+        // 优先顺序：小米/华为/三星自带 > 讯飞 > Google > 系统默认
+        String[] preferredEngines = {
+                "com.xiaomi.mibrain.speech",           // 小米
+                "com.huawei.hiai.engineservice",       // 华为
+                "com.samsung.SMT",                     // 三星
+                "com.iflytek.speechcloud",             // 讯飞
+                "com.google.android.tts",              // Google
+        };
+
+        List<TextToSpeech.EngineInfo> engines = null;
+        try {
+            TextToSpeech tempTts = new TextToSpeech(context, null);
+            engines = tempTts.getEngines();
+            tempTts.shutdown();
+        } catch (Exception e) {
+            Log.e(TAG, "获取TTS引擎列表失败", e);
+            return null;
+        }
+
+        if (engines != null) {
+            for (String preferred : preferredEngines) {
+                for (TextToSpeech.EngineInfo info : engines) {
+                    if (info.name.equals(preferred)) {
+                        Log.d(TAG, "使用TTS引擎: " + preferred);
+                        return preferred;
+                    }
+                }
+            }
+        }
+
+        Log.d(TAG, "使用系统默认TTS引擎");
+        return null; // 使用默认
     }
 
     /**

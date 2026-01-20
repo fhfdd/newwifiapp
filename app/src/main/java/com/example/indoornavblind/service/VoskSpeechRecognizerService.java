@@ -31,7 +31,8 @@ public class VoskSpeechRecognizerService {
     public enum Language {
         // 确保这里的文件名和 assets 里的完全一致
         CHINESE("vosk-model-small-cn-0.22.zip", "zh-CN", "中文", Locale.CHINESE),
-        ENGLISH("vosk-model-small-en-us-0.15.zip", "en-US", "英文", Locale.US);
+        ENGLISH("vosk-model-small-en-us-0.15.zip", "en-US", "英文", Locale.US),
+        CANTONESE("vosk-model-small-cn-0.22.zip", "yue", "粤語", new Locale("zh", "HK"));
 
         public final String modelName;
         public final String code;
@@ -47,6 +48,7 @@ public class VoskSpeechRecognizerService {
     }
 
     private Map<Language, Model> loadedModels = new HashMap<>();
+    private boolean voskAvailable = true;
     private SpeechService speechService;
     private Context context;
     private OnRecognitionListener listener;
@@ -67,7 +69,7 @@ public class VoskSpeechRecognizerService {
                 for (Language lang : Language.values()) {
                     String assetFileName = lang.modelName;
                     String targetDirName = "model_" + lang.code;
-                    File targetDir = new File(context.getExternalFilesDir(null), targetDirName);
+                    File targetDir = new File(context.getFilesDir(), targetDirName);
 
                     // 1. 解压阶段
                     if (!isModelExtracted(targetDir)) {
@@ -94,11 +96,11 @@ public class VoskSpeechRecognizerService {
                             mainHandler.post(() -> initRecognizer(lang));
                         }
                     } catch (UnsatisfiedLinkError e) {
-                        // ✅ 专门捕获模拟器架构不兼容导致的库缺失错误
-                        Log.e(TAG, "❌ 严重错误: 您的模拟器架构不支持 Vosk 库", e);
-                        notifyError("模拟器兼容性错误: 无法加载语音引擎");
-                        return; // 停止后续加载，防止连续崩溃
-                    } catch (Exception e) {
+                        Log.e(TAG, "❌ Vosk库不支持当前架构", e);
+                        voskAvailable = false;
+                        notifyError("语音识别不可用，请用文字输入");
+                        return;
+                    }catch (Exception e) {
                         Log.e(TAG, "❌ 模型加载异常", e);
                         notifyError("模型加载失败");
                     }
@@ -260,7 +262,7 @@ public class VoskSpeechRecognizerService {
     }
 
     public void setRecognitionListener(OnRecognitionListener listener) { this.listener = listener; }
-    public boolean isInitialized() { return loadedModels.get(currentLanguage) != null; }
+    public boolean isInitialized() { return voskAvailable && loadedModels.get(currentLanguage) != null; }
     public boolean isListening() { return isListening; }
     public Language getCurrentLanguage() { return currentLanguage; }
     public ArrayList<Language> getLoadedLanguages() { return new ArrayList<>(loadedModels.keySet()); }
@@ -273,7 +275,19 @@ public class VoskSpeechRecognizerService {
     }
 
     private String getGrammarForLanguage(Language language) {
-        return language == Language.ENGLISH ? getEnglishGrammar() : getChineseGrammar();
+        if (language == Language.ENGLISH) return getEnglishGrammar();
+        if (language == Language.CANTONESE) return getCantoneseGrammar();
+        return getChineseGrammar();
+    }
+
+    private String getCantoneseGrammar() {
+        return "[" +
+                "\"去浴室\", \"去门口\", \"去楼梯\", \"去电梯\", \"去厕所\", \"去出口\", " +
+                "\"我喺边\", \"我喺边度\", \"定位\", " +
+                "\"附近有咩\", \"停止导航\", \"取消导航\", \"重复\", \"再讲一次\", " +
+                "\"切换英文\", \"切换中文\", \"切换粤语\", " +
+                "\"帮助\"" +
+                "]";
     }
 
     private String getChineseGrammar() {
