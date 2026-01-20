@@ -71,6 +71,8 @@ public class MainActivity extends AppCompatActivity {
     private Runnable longPressRunnable;
     private boolean isLongPressTriggered = false;
 
+    private int currentFloor = 1; // 默认楼层
+
     private Handler statusUpdateHandler = new Handler(Looper.getMainLooper());
     private Runnable statusUpdateRunnable;
 
@@ -122,7 +124,7 @@ public class MainActivity extends AppCompatActivity {
             settingsFullscreen.setVisibility(View.VISIBLE);
             updateSettingsDisplay();
         }
-        
+
 
         new Thread(() -> {
             AppDatabase database = AppDatabase.getInstance();
@@ -144,6 +146,21 @@ public class MainActivity extends AppCompatActivity {
 
         String cmd = command.toLowerCase().trim();
         Log.d(TAG, "处理语音命令: " + cmd);
+
+        // 楼层选择
+        if (cmd.contains("楼") && (cmd.contains("我在") || cmd.contains("设置"))) {
+            try {
+                int floor = Integer.parseInt(cmd.replaceAll("[^0-9]", ""));
+                if (floor >= 1 && floor <= 10) {
+                    currentFloor = floor;
+                    speak("已设置楼层为" + floor + "楼", speechSpeed);
+                    return;
+                }
+            } catch (Exception e) {
+                speak("请说清楚楼层，例如我在3楼", speechSpeed);
+            }
+            return;
+        }
 
         // 1. 导航命令
         if (cmd.contains("去") || cmd.contains("导航到") || cmd.contains("到") ||

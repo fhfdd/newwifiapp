@@ -703,7 +703,9 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         announceCurrentStep(currentStep);
 
         stepCountAtStepStart = stepCount;
-        double segmentDistance = parseDistance(currentStep.getDistance_cn());
+        double segmentDistance = currentStep.getDistanceMeters() > 0
+                ? currentStep.getDistanceMeters()
+                : parseDistance(currentStep.getDistance_cn());
         expectedStepsForCurrentSegment = (int) Math.ceil(segmentDistance / stepLength);
         hasTurnWarned = false;
 

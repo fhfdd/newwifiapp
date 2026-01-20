@@ -39,16 +39,11 @@ public class App extends Application {
 
         // 🔥 优化：先检查数据库是否有指纹数据，没有则重新导入（不管标记）
         Executors.newSingleThreadExecutor().execute(() -> {
-
-            importAllFingerprintFiles();
-            // 查询数据库中已有的指纹数量
             int existingCount = db.wifiFingerprintDao().getTotalCount();
             Log.d("App", "数据库中现有指纹数量：" + existingCount);
 
-            // 如果没有数据，强制重新导入
             if (existingCount == 0 || prefs.getBoolean("force_reimport", false)) {
                 importAllFingerprintFiles();
-                // 清除强制导入标记
                 prefs.edit().putBoolean("force_reimport", false).apply();
             } else {
                 Log.d("App", "数据库已有指纹数据，跳过导入");
