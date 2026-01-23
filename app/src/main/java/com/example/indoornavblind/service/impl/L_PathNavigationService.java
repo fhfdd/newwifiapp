@@ -30,7 +30,7 @@ public class L_PathNavigationService implements NavigationService {
     @Override
     public List<PathEntity> calculatePath() {
         if (currentPosition == null || target == null) return List.of();
-        fullPath = PathParser.getFullPath(currentPosition.getLabel(), target);
+        fullPath = PathParser.getFullPath(currentPosition.getLabel(), target, currentPosition.getFloor());
         currentStep = 0;
         return fullPath;
     }
