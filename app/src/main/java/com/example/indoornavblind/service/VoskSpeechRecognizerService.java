@@ -154,7 +154,6 @@ public class VoskSpeechRecognizerService {
             }
 
             Recognizer recognizer = new Recognizer(model, 16000.0f);
-            recognizer.setGrammar(getGrammarForLanguage(language));
             speechService = new SpeechService(recognizer, 16000.0f);
             Log.d(TAG, "SpeechService initialized");
 

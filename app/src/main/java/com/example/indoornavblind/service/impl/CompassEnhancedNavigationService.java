@@ -20,37 +20,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/**
- * 完全离线增强导航服务 - 支持绝对方向判断
- *
- * 新增功能：
- * 1. 磁力计支持：获取绝对北向
- * 2. 东西南北播报：转换相对方向为绝对方向
- * 3. 方向稳定性：用户转身不影响导航指令
- * 4. PDR步数追踪
- * 5. 语音输入起点终点备用
- * 6. 完全离线运行
- *
- * 原有功能：
- * 1. 拐弯点提前播报
- * 2. 偏离路线检测
- * 3. 连续到达确认
- * 4. 实时定位跟踪
- * 5. 动态播报间隔
- */
 public class CompassEnhancedNavigationService implements NavigationService, SensorEventListener {
     private static final String TAG = "CompassNavigation";
 
-    /**
-     * 位置更新回调接口
-     */
     public interface PositionUpdateCallback {
         void onPositionUpdated(Position newPosition);
     }
 
-    /**
-     * 导航事件回调接口
-     */
     public interface NavigationEventCallback {
         void onNavigationStarted(String from, String to, int totalSteps, double totalDistance, int estimatedSeconds);
         void onStepAnnounced(int stepIndex, int totalSteps, String instruction, String absoluteDirection);
@@ -72,8 +48,21 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
     private static final double DEFAULT_STEP_LENGTH = 0.65;
     private static final double WALKING_SPEED = 0.8;
     private static final int TURN_WARNING_SECONDS = 5;
-    private static final float STEP_THRESHOLD = 12.0f;
     private static final long STEP_DEBOUNCE_MS = 300;
+    private static final float STEP_SENSITIVITY = 15.0f;
+
+    // 移动状态
+    private boolean isUserMoving = false;
+    private static final long MOVEMENT_TIMEOUT = 3000;
+    private int stepsInCurrentSegment = 0;
+    private int expectedStepsForSegment = 0;
+
+    // 计时器相关
+    private long segmentTimerStartTime = 0;
+    private long segmentPausedTime = 0;
+    private boolean isTimerPaused = false;
+    private long segmentExpectedDuration = 0;
+    private long pauseStartTime = 0;
 
     // 距离阈值
     private static final double TURN_WARNING_DISTANCE = 8.0;
@@ -84,7 +73,7 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
     private static final int REGULAR_INTERVAL_MS = 5000;
     private static final int NEAR_TURN_INTERVAL_MS = 3000;
     private static final int LOCATION_UPDATE_INTERVAL = 3000;
-    private static final int COMPASS_UPDATE_INTERVAL = 500; // 指南针更新间隔
+    private static final int COMPASS_UPDATE_INTERVAL = 500;
 
     private VoiceService voiceService;
     private LocationService locationService;
@@ -101,7 +90,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
     private Handler navigationHandler = new Handler(Looper.getMainLooper());
     private Handler locationUpdateHandler = new Handler(Looper.getMainLooper());
     private Handler compassUpdateHandler = new Handler(Looper.getMainLooper());
-    private Runnable stepGuidanceRunnable;
     private Runnable locationUpdateRunnable;
     private Runnable compassUpdateRunnable;
 
@@ -109,7 +97,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
     private double accumulatedDistance = 0.0;
     private boolean hasTurnWarned = false;
     private Position lastPosition = null;
-    private int arrivalConfirmCount = 0;
     private boolean hasAnnouncedArrival = false;
 
     // 回调
@@ -127,8 +114,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
     // 步数追踪
     private int stepCount = 0;
     private int stepCountAtStepStart = 0;
-    private long lastStepTime = 0;
-    private int expectedStepsForCurrentSegment = 0;
 
     // 方向追踪（绝对方向）
     private float[] accelerometerReading = new float[3];
@@ -136,9 +121,8 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
     private float[] rotationMatrix = new float[9];
     private float[] orientationAngles = new float[3];
 
-    private float currentAzimuth = 0;  // 当前磁北方位角（度）
-    private String currentCardinalDirection = "北";  // 当前基本方向
-    private float targetAzimuth = 0;  // 目标方位角（路径方向）
+    private float currentAzimuth = 0;
+    private String currentCardinalDirection = "北";
 
     // 方向平滑处理
     private static final int AZIMUTH_HISTORY_SIZE = 10;
@@ -147,6 +131,11 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
     // 步长配置
     private double stepLength = DEFAULT_STEP_LENGTH;
 
+    // 步伐检测相关
+    private long lastStepTime = 0;
+    private float lastMagnitude = 0;
+    private boolean stepPeakDetected = false;
+
     private Context appContext;
 
     public CompassEnhancedNavigationService(VoiceService voiceService, LocationService locationService) {
@@ -154,9 +143,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         this.locationService = locationService;
     }
 
-    /**
-     * 从SharedPreferences加载用户设置的步长
-     */
     public void loadUserSettings(Context context) {
         this.appContext = context;
         android.content.SharedPreferences prefs = context.getSharedPreferences("UserSettings", Context.MODE_PRIVATE);
@@ -169,9 +155,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         }
     }
 
-    /**
-     * 初始化传感器（PDR + 指南针）
-     */
     public void initSensors(Context context) {
         sensorManager = (SensorManager) context.getSystemService(Context.SENSOR_SERVICE);
         if (sensorManager != null) {
@@ -195,9 +178,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         }
     }
 
-    /**
-     * 启动传感器监听
-     */
     private void startSensors() {
         if (sensorManager == null) {
             return;
@@ -206,31 +186,24 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         stepCount = 0;
         stepCountAtStepStart = 0;
 
-        // 启动加速度计（步数检测）
         if (accelerometer != null && isPDREnabled) {
             sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_GAME);
             Log.d(TAG, "✓ 加速度计监听已启动");
         }
 
-        // 启动磁力计（指南针）
         if (magnetometer != null && isCompassEnabled) {
             sensorManager.registerListener(this, magnetometer, SensorManager.SENSOR_DELAY_GAME);
             Log.d(TAG, "✓ 磁力计监听已启动");
         }
 
-        // 启动陀螺仪（可选，用于辅助）
         if (gyroscope != null) {
             sensorManager.registerListener(this, gyroscope, SensorManager.SENSOR_DELAY_GAME);
             Log.d(TAG, "✓ 陀螺仪监听已启动");
         }
 
-        // 启动指南针定期更新
         startCompassUpdate();
     }
 
-    /**
-     * 停止传感器监听
-     */
     private void stopSensors() {
         if (sensorManager != null) {
             sensorManager.unregisterListener(this);
@@ -263,46 +236,30 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         }
     }
 
-    /**
-     * 更新指南针数据（计算绝对方向）
-     */
     private void updateCompass() {
         if (!isCompassEnabled) {
             return;
         }
 
-        // 计算旋转矩阵
         boolean success = SensorManager.getRotationMatrix(
                 rotationMatrix, null,
                 accelerometerReading, magnetometerReading
         );
 
         if (success) {
-            // 获取方向角度
             SensorManager.getOrientation(rotationMatrix, orientationAngles);
-
-            // 方位角（Azimuth）：与磁北的夹角（弧度）
             float azimuthRad = orientationAngles[0];
             float azimuthDeg = (float) Math.toDegrees(azimuthRad);
 
-            // 归一化到0-360度
             if (azimuthDeg < 0) {
                 azimuthDeg += 360;
             }
 
-            // 平滑处理（避免抖动）
             currentAzimuth = smoothAzimuth(azimuthDeg);
-
-            // 转换为基本方向（8个方向）
             currentCardinalDirection = getCardinalDirection(currentAzimuth);
-
-            // Log.d(TAG, String.format("指南针: %.1f° (%s)", currentAzimuth, currentCardinalDirection));
         }
     }
 
-    /**
-     * 平滑方位角（移动平均）
-     */
     private float smoothAzimuth(float newAzimuth) {
         azimuthHistory.add(newAzimuth);
 
@@ -310,7 +267,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
             azimuthHistory.remove(0);
         }
 
-        // 处理360度边界问题
         float sum = 0;
         int count = 0;
         for (float az : azimuthHistory) {
@@ -321,54 +277,39 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         return sum / count;
     }
 
-    /**
-     * 获取基本方向（8个方向）
-     */
     private String getCardinalDirection(float azimuth) {
         String[] directions = currentLocale.equals(Locale.CHINESE) || currentLocale.equals(Locale.TRADITIONAL_CHINESE)
                 ? CARDINAL_DIRECTIONS
                 : CARDINAL_DIRECTIONS_EN;
 
-        // 每个方向占45度
         int index = (int) ((azimuth + 22.5) / 45.0) % 8;
         return directions[index];
     }
 
-    /**
-     * 计算相对转向的绝对方向
-     * @param relativeDirection 相对方向（如"左转"、"右转"）
-     * @return 绝对方向（如"向东"、"向北"）
-     */
     private String calculateAbsoluteDirection(String relativeDirection) {
         if (!isCompassEnabled) {
-            return relativeDirection;  // 如果没有指南针，返回相对方向
+            return relativeDirection;
         }
 
-        // 解析相对转向
         float turnAngle = 0;
         if (relativeDirection.contains("左") || relativeDirection.toLowerCase().contains("left")) {
-            turnAngle = -90;  // 左转90度
+            turnAngle = -90;
         } else if (relativeDirection.contains("右") || relativeDirection.toLowerCase().contains("right")) {
-            turnAngle = 90;   // 右转90度
+            turnAngle = 90;
         } else if (relativeDirection.contains("直") || relativeDirection.toLowerCase().contains("straight")) {
-            turnAngle = 0;    // 直行
+            turnAngle = 0;
         } else if (relativeDirection.contains("后") || relativeDirection.toLowerCase().contains("back")) {
-            turnAngle = 180;  // 后转
+            turnAngle = 180;
         }
 
-        // 计算绝对方向
         float absoluteAzimuth = currentAzimuth + turnAngle;
 
-        // 归一化
         while (absoluteAzimuth < 0) absoluteAzimuth += 360;
         while (absoluteAzimuth >= 360) absoluteAzimuth -= 360;
 
         return getCardinalDirection(absoluteAzimuth);
     }
 
-    /**
-     * 启动指南针定期更新
-     */
     private void startCompassUpdate() {
         compassUpdateRunnable = new Runnable() {
             @Override
@@ -382,160 +323,171 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         compassUpdateHandler.post(compassUpdateRunnable);
     }
 
-    /**
-     * 停止指南针更新
-     */
+    private void startMovementMonitor() {
+        Handler movementHandler = new Handler(Looper.getMainLooper());
+        movementHandler.post(new Runnable() {
+            @Override
+            public void run() {
+                checkMovementStatus();
+                movementHandler.postDelayed(this, 1000);
+            }
+        });
+    }
+
     private void stopCompassUpdate() {
         if (compassUpdateRunnable != null) {
             compassUpdateHandler.removeCallbacks(compassUpdateRunnable);
         }
     }
 
-    /**
-     * 处理加速度计数据 - 步伐检测
-     */
     private void handleAccelerometer(float[] values) {
+        if (!isNavigating) return;
+
         long currentTime = System.currentTimeMillis();
 
-        // 峰值检测算法
         float magnitude = (float) Math.sqrt(
                 values[0] * values[0] +
                         values[1] * values[1] +
                         values[2] * values[2]
         );
 
-        if (Math.abs(values[1]) > STEP_THRESHOLD &&
-                (currentTime - lastStepTime) > STEP_DEBOUNCE_MS) {
-
-            stepCount++;
-            lastStepTime = currentTime;
-            accumulatedDistance += stepLength;
-
-            Log.d(TAG, String.format("检测到步伐 #%d，累计距离: %.1fm", stepCount, accumulatedDistance));
-
-            checkStepProgress();
-        }
-    }
-
-    // 是否已触发当前段的步数完成
-    private boolean stepProgressTriggered = false;
-
-    /**
-     * 检查步数进度 - 到达节点才播报下一步
-     */
-    private void checkStepProgress() {
-        if (currentStepIndex >= fullPath.size() || !isNavigating) {
+        if (currentTime - lastStepTime < STEP_DEBOUNCE_MS) {
             return;
         }
 
-        int stepsSinceStart = stepCount - stepCountAtStepStart;
-
-        // 当步数达到预期的90%时，认为到达当前节点，播报下一步
-        if (expectedStepsForCurrentSegment > 0 &&
-                stepsSinceStart >= expectedStepsForCurrentSegment * 0.9) {
-
-            Log.d(TAG, String.format("步数到达: %d/%d，切换到下一节点",
-                    stepsSinceStart, expectedStepsForCurrentSegment));
-
-            // 移除定时播报，改为步数触发
-            navigationHandler.removeCallbacks(stepGuidanceRunnable);
-
-            currentStepIndex++;
-            if (currentStepIndex < fullPath.size()) {
-                PathEntity nextStep = fullPath.get(currentStepIndex);
-                stepCountAtStepStart = stepCount;
-                expectedStepsForCurrentSegment = (int) Math.ceil(
-                        parseDistance(nextStep.getDistance_cn()) / stepLength);
-                hasTurnWarned = false;
-
-                announceCurrentStep(nextStep);
+        if (magnitude > STEP_SENSITIVITY && lastMagnitude > magnitude) {
+            if (stepPeakDetected) {
+                onStepDetected(currentTime, magnitude);
+                stepPeakDetected = false;
             } else {
-                handleArrival();
+                stepPeakDetected = true;
             }
+        }
+
+        lastMagnitude = magnitude;
+    }
+
+    private void onStepDetected(long currentTime, float magnitude) {
+        lastStepTime = currentTime;
+        stepCount++;
+        stepsInCurrentSegment++;
+
+        isUserMoving = true;
+
+        Log.d(TAG, String.format("检测到有效步伐 #%d，当前段%d步/预期%d步",
+                stepCount, stepsInCurrentSegment, expectedStepsForSegment));
+
+        if (expectedStepsForSegment > 0 &&
+                stepsInCurrentSegment >= expectedStepsForSegment * 0.8) {
+            Log.d(TAG, "步数达到阈值，触发下一步");
+            advanceToNextStepByTimer();
+        }
+    }
+
+    private void checkMovementStatus() {
+        long currentTime = System.currentTimeMillis();
+        boolean wasMoving = isUserMoving;
+
+        isUserMoving = (currentTime - lastStepTime) < MOVEMENT_TIMEOUT;
+
+        if (wasMoving != isUserMoving) {
+            Log.d(TAG, "移动状态: " + (isUserMoving ? "移动中" : "静止"));
+
+            if (isUserMoving) {
+                if (isTimerPaused) {
+                    isTimerPaused = false;
+                    segmentPausedTime += System.currentTimeMillis() - pauseStartTime;
+                    Log.d(TAG, "计时器恢复，已累计暂停" + segmentPausedTime + "ms");
+                    navigationHandler.post(timerCheckRunnable);
+                }
+            } else {
+                if (!isTimerPaused) {
+                    isTimerPaused = true;
+                    pauseStartTime = System.currentTimeMillis();
+                    Log.d(TAG, "计时器暂停");
+                    navigationHandler.removeCallbacks(timerCheckRunnable);
+                }
+            }
+        }
+    }
+
+    // 创建定时检查Runnable
+    private Runnable timerCheckRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (!isNavigating || currentStepIndex >= fullPath.size()) {
+                return;
+            }
+
+            if (isTimerPaused) {
+                navigationHandler.postDelayed(this, 500);
+                return;
+            }
+
+            long elapsed = System.currentTimeMillis() - segmentTimerStartTime - segmentPausedTime;
+
+            if (stepsInCurrentSegment >= expectedStepsForSegment * 0.8) {
+                advanceToNextStepByTimer();
+            } else {
+                navigationHandler.postDelayed(this, 500);
+            }
+        }
+    };
+    private void advanceToNextStepByTimer() {
+        // 添加额外检查：必须检测到用户移动才进入下一步
+        if (!isUserMoving && stepsInCurrentSegment < expectedStepsForSegment * 0.3) {
+            Log.d(TAG, "用户未移动，暂不进入下一步");
+            navigationHandler.postDelayed(timerCheckRunnable, 1000);
             return;
         }
 
-        checkTurnWarningByTime();
+        if (!isNavigating || currentStepIndex >= fullPath.size()) {
+            return;
+        }
+
+        navigationHandler.removeCallbacks(timerCheckRunnable);
+        currentStepIndex++;
+
+        if (currentStepIndex < fullPath.size()) {
+            PathEntity nextStep = fullPath.get(currentStepIndex);
+            setupSegmentTimer(nextStep);
+            announceCurrentStep(nextStep);
+        } else {
+            handleArrival();
+        }
     }
 
-    /**
-     * 前进到下一步并播报
-     */
-    private void advanceToNextStep() {
-        if (!isNavigating || currentStepIndex >= fullPath.size()) {
+    private void startStepByStepGuidance() {
+        if (fullPath == null || fullPath.isEmpty() || currentStepIndex >= fullPath.size()) {
             return;
         }
 
         PathEntity currentStep = fullPath.get(currentStepIndex);
         announceCurrentStep(currentStep);
 
-        currentStepIndex++;
-        hasTurnWarned = false;
-        stepCountAtStepStart = stepCount;
-        stepProgressTriggered = false;  // 重置标志
-
-        // 计算下一段的预期步数
-        if (currentStepIndex < fullPath.size()) {
-            PathEntity nextSegment = fullPath.get(currentStepIndex);
-            double segmentDistance = parseDistance(nextSegment.getDistance_cn());
-            expectedStepsForCurrentSegment = (int) Math.ceil(segmentDistance / stepLength);
-
-            // 设置备用定时器（防止步数检测失败时的后备方案）
-            int fallbackInterval = (int) (expectedStepsForCurrentSegment * stepLength / WALKING_SPEED * 1000 * 1.2);
-            fallbackInterval = Math.max(fallbackInterval, baseIntervalMs);
-            navigationHandler.postDelayed(stepGuidanceRunnable, fallbackInterval);
-        } else {
-            handleArrival();
-        }
+        setupSegmentTimer(currentStep);
+        startMovementMonitor();
     }
 
-    /**
-     * 基于时间的转弯提醒
-     */
-    private void checkTurnWarningByTime() {
-        if (currentStepIndex >= fullPath.size() - 1 || hasTurnWarned) {
-            return;
-        }
+    private void setupSegmentTimer(PathEntity step) {
+        double segmentDistance = step.getDistanceMeters() > 0
+                ? step.getDistanceMeters()
+                : parseDistance(step.getDistance_cn());
 
-        PathEntity nextStep = fullPath.get(currentStepIndex + 1);
+        segmentExpectedDuration = (long) ((segmentDistance / WALKING_SPEED) * 1000);
 
-        if (isTurnStep(nextStep)) {
-            PathEntity currentStep = fullPath.get(currentStepIndex);
-            double stepDistance = parseDistance(currentStep.getDistance_cn());
-            int expectedSteps = (int) Math.ceil(stepDistance / stepLength);
-            double expectedSeconds = expectedSteps * stepLength / WALKING_SPEED;
+        expectedStepsForSegment = (int) Math.ceil(segmentDistance / stepLength);
 
-            int stepsSinceStart = stepCount - stepCountAtStepStart;
-            double elapsedSeconds = stepsSinceStart * stepLength / WALKING_SPEED;
-            double secondsRemaining = expectedSeconds - elapsedSeconds;
+        stepsInCurrentSegment = 0;
 
-            if (secondsRemaining <= TURN_WARNING_SECONDS && secondsRemaining > 0) {
-                announceTurnWarningByTime(nextStep, (int) secondsRemaining);
-                hasTurnWarned = true;
-            }
-        }
+        segmentTimerStartTime = System.currentTimeMillis();
+        isTimerPaused = false;
+        segmentPausedTime = 0;
+
+        Log.d(TAG, String.format("段计时器：距离%.1fm，预期%d步，约%d秒",
+                segmentDistance, expectedStepsForSegment, segmentExpectedDuration/1000));
     }
 
-    /**
-     * 基于时间和方向的转弯提醒
-     */
-    private void announceTurnWarningByTime(PathEntity turnStep, int seconds) {
-        String relativeDirection = PathParser.getDirectionByLang(turnStep, currentLocale);
-        String absoluteDirection = calculateAbsoluteDirection(relativeDirection);
-
-        String message = String.format("注意，%d秒后%s，朝%s",
-                seconds, relativeDirection, absoluteDirection);
-        voiceService.speak(message, baseSpeed);
-        Log.d(TAG, "转弯提醒: " + message);
-
-        if (eventCallback != null) {
-            eventCallback.onTurnWarning(relativeDirection, absoluteDirection, seconds);
-        }
-    }
-
-    /**
-     * 设置回调
-     */
     public void setPositionUpdateCallback(PositionUpdateCallback callback) {
         this.positionCallback = callback;
     }
@@ -576,7 +528,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         fullPath = PathParser.getFullPath(currentPosition.getLabel(), targetDestination, currentPosition.getFloor());
         currentStepIndex = 0;
         accumulatedDistance = 0.0;
-        arrivalConfirmCount = 0;
         hasAnnouncedArrival = false;
         stepCount = 0;
         stepCountAtStepStart = 0;
@@ -589,9 +540,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         return "";
     }
 
-    /**
-     * 开始连续导航（增强版 - 带绝对方向）
-     */
     public void startContinuousNavigation() {
         if (fullPath == null || fullPath.isEmpty()) {
             voiceService.speak("未找到导航路径，请重新设置", baseSpeed);
@@ -607,7 +555,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         hasTurnWarned = false;
         stepCount = 0;
         stepCountAtStepStart = 0;
-        stepProgressTriggered = false;
 
         Log.d(TAG, "=== 开始导航（支持绝对方向） ===");
         Log.d(TAG, "起点：" + currentPosition.getLabel());
@@ -615,14 +562,12 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         Log.d(TAG, "路径步数：" + fullPath.size());
         Log.d(TAG, "指南针：" + (isCompassEnabled ? "启用" : "禁用"));
 
-        // 启动传感器
         startSensors();
+        startMovementMonitor();
 
-        // 播报详细路径概览
         String overview = buildDetailedPathOverview();
         voiceService.speak(overview, baseSpeed);
 
-        // 通知导航开始
         if (eventCallback != null) {
             double totalDist = calculateTotalDistance();
             int totalWalkingSteps = (int) Math.ceil(totalDist / stepLength);
@@ -631,20 +576,13 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
                     fullPath.size(), totalDist, estimatedSec);
         }
 
-        // 启动实时定位跟踪
         startLocationTracking();
 
-        // 延迟后开始分步导航
-        navigationHandler.postDelayed(() -> {
-            if (isNavigating) {
-                startStepByStepGuidance();
-            }
-        }, 3000);
+        if (isNavigating) {
+            startStepByStepGuidance();
+        }
     }
 
-    /**
-     * 构建详细路径概览
-     */
     private String buildDetailedPathOverview() {
         int totalNavigationSteps = fullPath.size();
         double totalDistance = calculateTotalDistance();
@@ -676,9 +614,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         return sb.toString();
     }
 
-    /**
-     * 计算总距离
-     */
     private double calculateTotalDistance() {
         double total = 0;
         for (PathEntity step : fullPath) {
@@ -687,9 +622,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         return total;
     }
 
-    /**
-     * 解析距离
-     */
     private double parseDistance(String distStr) {
         try {
             String numStr = distStr.replaceAll("[^0-9.]", "");
@@ -699,62 +631,12 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         }
     }
 
-    /**
-     * 判断是否是转弯步骤
-     */
     private boolean isTurnStep(PathEntity step) {
         String dir = step.getDirection_cn();
         return dir.contains("左") || dir.contains("右") ||
                 dir.toLowerCase().contains("left") || dir.toLowerCase().contains("right");
     }
 
-    /**
-     * 开始分步引导 - 步数优先，时间兜底
-     */
-    private void startStepByStepGuidance() {
-        if (fullPath == null || fullPath.isEmpty() || currentStepIndex >= fullPath.size()) {
-            return;
-        }
-
-        PathEntity currentStep = fullPath.get(currentStepIndex);
-        announceCurrentStep(currentStep);
-
-        stepCountAtStepStart = stepCount;
-        double segmentDistance = currentStep.getDistanceMeters() > 0
-                ? currentStep.getDistanceMeters()
-                : parseDistance(currentStep.getDistance_cn());
-        expectedStepsForCurrentSegment = (int) Math.ceil(segmentDistance / stepLength);
-        hasTurnWarned = false;
-
-        // 超时兜底：如果步数检测失败，用时间兜底
-        stepGuidanceRunnable = () -> {
-            if (!isNavigating || currentStepIndex >= fullPath.size()) {
-                return;
-            }
-
-            // 超时兜底播报
-            currentStepIndex++;
-            if (currentStepIndex < fullPath.size()) {
-                PathEntity nextStep = fullPath.get(currentStepIndex);
-                stepCountAtStepStart = stepCount;
-                expectedStepsForCurrentSegment = (int) Math.ceil(
-                        parseDistance(nextStep.getDistance_cn()) / stepLength);
-                hasTurnWarned = false;
-
-                announceCurrentStep(nextStep);
-                navigationHandler.postDelayed(stepGuidanceRunnable, baseIntervalMs);
-            } else {
-                handleArrival();
-            }
-        };
-
-        // 设置超时兜底（步数检测可能失败）
-        navigationHandler.postDelayed(stepGuidanceRunnable, baseIntervalMs);
-    }
-
-    /**
-     * 播报当前步骤（增强版 - 带绝对方向）
-     */
     private void announceCurrentStep(PathEntity step) {
         String relativeDirection = PathParser.getDirectionByLang(step, currentLocale);
         String distance = step.getDistance_cn();
@@ -777,29 +659,11 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         }
     }
 
-    /**
-     * 计算播报间隔
-     */
-    private int calculateInterval() {
-        if (currentStepIndex < fullPath.size() - 1) {
-            PathEntity nextStep = fullPath.get(currentStepIndex + 1);
-            if (isTurnStep(nextStep)) {
-                return NEAR_TURN_INTERVAL_MS;
-            }
-        }
-        return baseIntervalMs;
-    }
-
-    /**
-     * 启动定位跟踪
-     */
     private void startLocationTracking() {
         locationUpdateRunnable = new Runnable() {
             @Override
             public void run() {
                 if (isNavigating && locationService != null) {
-                    // 修复点：LocationService 通常没有同步获取位置的方法
-                    // 建议：直接调用异步定位方法更新 currentPosition
                     locationService.locate(new LocationService.LocationCallback() {
                         @Override
                         public void onSuccess(Position position) {
@@ -819,9 +683,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         locationUpdateHandler.post(locationUpdateRunnable);
     }
 
-    /**
-     * 处理位置更新
-     */
     private void handlePositionUpdate(Position newPos) {
         currentPosition = newPos;
 
@@ -836,9 +697,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         Log.d(TAG, "位置更新: " + newPos.getLabel());
     }
 
-    /**
-     * 处理到达
-     */
     private void handleArrival() {
         if (!hasAnnouncedArrival) {
             String message = String.format("已到达目的地：%s。导航结束", targetDestination);
@@ -857,8 +715,8 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
     public void stopNavigation() {
         isNavigating = false;
 
-        if (navigationHandler != null && stepGuidanceRunnable != null) {
-            navigationHandler.removeCallbacks(stepGuidanceRunnable);
+        if (navigationHandler != null) {
+            navigationHandler.removeCallbacks(timerCheckRunnable);
         }
 
         if (locationUpdateHandler != null && locationUpdateRunnable != null) {
@@ -874,9 +732,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         Log.d(TAG, "导航已停止");
     }
 
-    /**
-     * 获取当前方向信息
-     */
     public String getCurrentDirectionInfo() {
         if (isCompassEnabled) {
             return String.format("当前朝向: %.1f° (%s)", currentAzimuth, currentCardinalDirection);
@@ -885,9 +740,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         }
     }
 
-    /**
-     * 检查传感器状态
-     */
     public String getSensorStatus() {
         StringBuilder sb = new StringBuilder();
         sb.append("PDR（步数）: ").append(isPDREnabled ? "✓" : "✗").append("\n");

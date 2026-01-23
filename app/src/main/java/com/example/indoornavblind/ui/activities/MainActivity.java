@@ -34,8 +34,10 @@ import com.example.indoornavblind.factory.ServiceFactory;
 import com.example.indoornavblind.service.C_TextToSpeechService;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
@@ -139,6 +141,18 @@ public class MainActivity extends AppCompatActivity {
         }).start();
     }
 
+
+    private List<Integer> findFloorsForLocation(String name) {
+        Set<Integer> floors = new HashSet<>();
+        List<PathEntity> allPaths = PathParser.getAllPaths();
+        for (PathEntity path : allPaths) {
+            if (path.getStartLabel_cn().contains(name) || path.getEndLabel_cn().contains(name)) {
+                floors.add(path.getFloor());
+            }
+        }
+        return new ArrayList<>(floors);
+    }
+
     private void processVoiceCommand(String command) {
         if (command == null || command.trim().isEmpty()) {
             return;
@@ -176,10 +190,22 @@ public class MainActivity extends AppCompatActivity {
                     .trim();
 
             if (!destination.isEmpty()) {
-                destinationName = destination;
-                hasDestination = true;
-                speak("正在导航到" + destination, speechSpeed);
-                startNavigation(destination);
+                // 检查是否有同名地点需要确认楼层
+                List<Integer> floors = findFloorsForLocation(destination);
+                if (floors.size() > 1 && currentPosition != null) {
+                    // 同名地点存在多楼层，使用当前楼层
+                    destinationName = destination;
+                    hasDestination = true;
+                    speak("正在导航到" + currentPosition.getFloor() + "楼的" + destination, speechSpeed);
+                    startNavigation(destination);
+                } else if (floors.size() == 1) {
+                    destinationName = destination;
+                    hasDestination = true;
+                    speak("正在导航到" + destination, speechSpeed);
+                    startNavigation(destination);
+                } else {
+                    speak("未找到" + destination + "，请说具体位置", speechSpeed);
+                }
                 return;
             }
         }
@@ -210,6 +236,7 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
         }
+
 
         // 2. 位置查询
         else if (cmd.contains("我在哪") || cmd.contains("位置") || cmd.contains("where am i") || cmd.contains("location")) {
@@ -282,17 +309,24 @@ public class MainActivity extends AppCompatActivity {
 
         // 4. 设置Vosk识别监听器（直接处理语音指令）
         voskService.setRecognitionListener(new VoskSpeechRecognizerService.OnRecognitionListener() {
+
             @Override
             public void onResult(ArrayList<String> results) {
                 if (results != null && !results.isEmpty()) {
                     String command = results.get(0);
                     Log.d(TAG, "Vosk识别结果: " + command);
-
                     runOnUiThread(() -> {
                         updateDisplay("你说: " + command);
-                        processVoiceCommand(command); // 直接处理命令
+                        processVoiceCommand(command);
                     });
                 }
+
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    if (voskService != null && voskService.isInitialized() && !isInSettingsMode) {
+                        Log.d(TAG, "自动重启语音监听");
+                        voskService.startListening();
+                    }
+                }, 1500); // 延迟增加到1.5秒避免TTS干扰
             }
 
             @Override
@@ -384,7 +418,7 @@ public class MainActivity extends AppCompatActivity {
         // 9. 延迟检查服务状态
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             checkServicesStatus();
-        }, 2000);
+        }, 4000);
     }
 
     // 检查服务状态的方法
@@ -408,26 +442,21 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private Position findPositionByName(String name) {
-        List<String> pois = PathParser.getAllPOINames();
-
-        // 尝试模糊匹配
-        for (String poi : pois) {
-            if (poi.contains(name) || name.contains(poi)) {
+        List<PathEntity> allPaths = PathParser.getAllPaths();
+        for (PathEntity path : allPaths) {
+            if (path.getStartLabel_cn().contains(name) || name.contains(path.getStartLabel_cn())) {
                 Position pos = new Position();
-                pos.setLabel(poi);
-                // 这里需要从数据库获取完整的Position信息
-                // 为了简化，先返回基础信息
+                pos.setLabel(path.getStartLabel_cn());
+                pos.setFloor(path.getFloor()); // 关键：设置楼层
+                return pos;
+            }
+            if (path.getEndLabel_cn().contains(name) || name.contains(path.getEndLabel_cn())) {
+                Position pos = new Position();
+                pos.setLabel(path.getEndLabel_cn());
+                pos.setFloor(path.getFloor());
                 return pos;
             }
         }
-
-        // 精确匹配
-        if (pois.contains(name)) {
-            Position pos = new Position();
-            pos.setLabel(name);
-            return pos;
-        }
-
         return null;
     }
 
@@ -866,10 +895,21 @@ public class MainActivity extends AppCompatActivity {
         lastSpokenText = text;
         updateDisplay(text);
 
+        // 检查音频状态
+        android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
+        int volume = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
+        int maxVol = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
+        Log.d(TAG, "TTS尝试播报: " + text + ", 音量=" + volume + "/" + maxVol + ", isReady=" + (ttsService != null ? ttsService.isReady() : "null"));
+
+        if (volume == 0) {
+            Log.w(TAG, "警告: 媒体音量为0!");
+        }
+
         if (ttsService != null && ttsService.isReady()) {
             ttsService.speak(text, speed);
         } else {
-            Log.e(TAG, "TTS服务未就绪，无法播报: " + text);
+            Log.e(TAG, "TTS未就绪! 尝试重新初始化");
+            if (ttsService != null) ttsService.forceReinit();
         }
     }
 
