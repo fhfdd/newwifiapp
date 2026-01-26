@@ -91,20 +91,23 @@ public class PathParser {
             }
 
             for (PathEntity path : allPaths) {
-                // 添加楼层过滤
                 int pathFloor = 0;
                 try {
                     pathFloor = Integer.parseInt(String.valueOf(path.getFloor()));
-                } catch (Exception e) {
-                    // 忽略非数字楼层
-                }
+                } catch (Exception ignored) {}
+                if (pathFloor != floor) continue;
 
-                if (pathFloor == floor &&
-                        path.getStartLabel_cn().equals(current) &&
-                        !visited.contains(path.getEndLabel_cn())) {
+                // 正向边
+                if (path.getStartLabel_cn().equals(current) && !visited.contains(path.getEndLabel_cn())) {
                     queue.offer(path.getEndLabel_cn());
                     visited.add(path.getEndLabel_cn());
                     previous.put(path.getEndLabel_cn(), current);
+                }
+                // 反向边
+                if (path.getEndLabel_cn().equals(current) && !visited.contains(path.getStartLabel_cn())) {
+                    queue.offer(path.getStartLabel_cn());
+                    visited.add(path.getStartLabel_cn());
+                    previous.put(path.getStartLabel_cn(), current);
                 }
             }
         }
@@ -132,12 +135,40 @@ public class PathParser {
 
     private static PathEntity findEdge(String from, String to) {
         for (PathEntity path : allPaths) {
-            if (path.getStartLabel_cn().equals(from) && 
-                path.getEndLabel_cn().equals(to)) {
+            if (path.getStartLabel_cn().equals(from) && path.getEndLabel_cn().equals(to)) {
                 return path;
+            }
+            if (path.getEndLabel_cn().equals(from) && path.getStartLabel_cn().equals(to)) {
+                return createReversedPath(path);
             }
         }
         return null;
+    }
+
+    private static PathEntity createReversedPath(PathEntity original) {
+        PathEntity reversed = new PathEntity();
+        reversed.setStartLabel_cn(original.getEndLabel_cn());
+        reversed.setEndLabel_cn(original.getStartLabel_cn());
+        reversed.setStartLabel_en(original.getEndLabel_en());
+        reversed.setEndLabel_en(original.getStartLabel_en());
+        reversed.setFloor(original.getFloor());
+        reversed.setDistance_cn(original.getDistance_cn());
+        reversed.setDistance_en(original.getDistance_en());
+        reversed.setDistance_yue(original.getDistance_yue());
+        reversed.setDirection_cn(reverseDirection(original.getDirection_cn()));
+        reversed.setDirection_en(reverseDirection(original.getDirection_en()));
+        reversed.setDirection_yue(reverseDirection(original.getDirection_yue()));
+        reversed.setNextPoint_cn(original.getStartLabel_cn());
+        reversed.setNextPoint_en(original.getStartLabel_en());
+        reversed.setNextPoint_yue(original.getStartLabel_yue());
+        return reversed;
+    }
+
+    private static String reverseDirection(String dir) {
+        if (dir == null) return null;
+        return dir.replace("左", "右§").replace("右", "左").replace("§", "")
+                .replace("left", "right§").replace("right", "left").replace("§", "")
+                .replace("Left", "Right§").replace("Right", "Left").replace("§", "");
     }
 
     public static String getDirectionByLang(PathEntity path, Locale locale) {
