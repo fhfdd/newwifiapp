@@ -348,28 +348,44 @@ public class LocalIntentEngine {
      * 在文本中查找目的地（支持模糊匹配）
      */
     private String findDestination(String text) {
+        String matched = null;
+
         // 精确匹配
         for (String dest : availableDestinations) {
             if (text.contains(dest.toLowerCase())) {
-                return dest;
+                matched = dest;
+                break;
             }
         }
 
-        // 模糊匹配（处理语音识别可能的错误）
-        for (String dest : availableDestinations) {
-            // 简化匹配：去除常见后缀
-            String simpleDest = dest.replace("a", "").replace("b", "");
-            if (text.contains(simpleDest.toLowerCase())) {
-                return dest;
-            }
-
-            // 部分匹配（目的地名称是文本的一部分）
-            if (fuzzyMatch(text, dest.toLowerCase())) {
-                return dest;
+        // 模糊匹配
+        if (matched == null) {
+            for (String dest : availableDestinations) {
+                String simpleDest = dest.replace("a", "").replace("b", "");
+                if (text.contains(simpleDest.toLowerCase()) || fuzzyMatch(text, dest.toLowerCase())) {
+                    matched = dest;
+                    break;
+                }
             }
         }
 
-        return null;
+        return matched;
+    }
+
+    /**
+     * 检查目的地是否在多个楼层存在
+     */
+    public List<Integer> getFloorsForDestination(String destination) {
+        List<Integer> floors = new ArrayList<>();
+        for (PathEntity path : PathParser.getAllPaths()) {
+            int floor = 0;
+            try { floor = Integer.parseInt(String.valueOf(path.getFloor())); } catch (Exception ignored) {}
+            if ((path.getStartLabel_cn().equalsIgnoreCase(destination) ||
+                    path.getEndLabel_cn().equalsIgnoreCase(destination)) && !floors.contains(floor)) {
+                floors.add(floor);
+            }
+        }
+        return floors;
     }
 
     /**

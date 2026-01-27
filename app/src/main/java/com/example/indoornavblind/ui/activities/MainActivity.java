@@ -525,31 +525,7 @@ public class MainActivity extends AppCompatActivity {
         etVoiceSimulate.setOnEditorActionListener((v, actionId, event) -> {
             String input = etVoiceSimulate.getText().toString().trim();
             if (!input.isEmpty()) {
-                if (input.startsWith("我在") || input.toLowerCase().startsWith("i am at")) {
-                    // 直接处理位置输入
-                    if (input.startsWith("我在")) {
-                        String location = input.substring(2).trim();
-                        Position pos = findPositionByName(location);
-                        if (pos != null) {
-                            currentPosition = pos;
-                            isLocated = true;
-                            navigationService.setCurrentPosition(pos);
-                            speak("已设置当前位置为" + location, speechSpeed);
-                            updateDisplay("当前位置：" + location);
-                        } else {
-                            speak("未找到位置" + location, speechSpeed);
-                        }
-                    }
-                } else {
-                    destinationName = input;
-                    hasDestination = true;
-                    updateDisplay("目的地：" + destinationName);
-                    if (isLocated) speak("目的地已设置为" + destinationName + "，点击开始导航", speechSpeed);
-                    else {
-                        speak("目的地已设置为" + destinationName + "，正在定位", speechSpeed);
-                        startLocation();
-                    }
-                }
+                processVoiceCommand(input);
                 etVoiceSimulate.setText("");
             }
             return true;

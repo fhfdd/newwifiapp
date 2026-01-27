@@ -206,4 +206,23 @@ public class PathParser {
         }
         return new ArrayList<>(pois);
     }
+
+    public static List<String> getNearbyPOIs(String currentLabel, int floor, int limit) {
+        Set<String> nearby = new LinkedHashSet<>();
+        if (currentLabel == null) return new ArrayList<>();
+
+        for (PathEntity path : allPaths) {
+            int pathFloor = 0;
+            try { pathFloor = Integer.parseInt(String.valueOf(path.getFloor())); } catch (Exception ignored) {}
+            if (pathFloor != floor) continue;
+
+            if (path.getStartLabel_cn().equals(currentLabel)) {
+                nearby.add(path.getEndLabel_cn());
+            } else if (path.getEndLabel_cn().equals(currentLabel)) {
+                nearby.add(path.getStartLabel_cn());
+            }
+            if (nearby.size() >= limit) break;
+        }
+        return new ArrayList<>(nearby);
+    }
 }
