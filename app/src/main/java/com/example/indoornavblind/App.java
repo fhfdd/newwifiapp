@@ -26,7 +26,7 @@ public class App extends Application {
 
     // 配置需要导入的指纹文件（确保文件名和路径正确）
 
-    private static final String[] FINGERPRINT_FILES = {"fingerprint_db.json","3a.json","26.json","test.json"};
+    private static final String[] FINGERPRINT_FILES = {"fingerprint_db.json","3c.json","2c.json","3a.json","26.json","test.json"};
 
 
     @Override
@@ -41,6 +41,8 @@ public class App extends Application {
         Executors.newSingleThreadExecutor().execute(() -> {
             int existingCount = db.wifiFingerprintDao().getTotalCount();
             Log.d("App", "数据库中现有指纹数量：" + existingCount);
+
+            importAllFingerprintFiles();
 
             if (existingCount == 0 || prefs.getBoolean("force_reimport", false)) {
                 importAllFingerprintFiles();

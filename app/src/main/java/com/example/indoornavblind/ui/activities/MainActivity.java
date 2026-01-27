@@ -698,7 +698,14 @@ public class MainActivity extends AppCompatActivity {
                     }, 2000);
                 });
             }
-            @Override public void onFailure(String e) { runOnUiThread(() -> { isLocated = false; speak("WiFi定位失败。" + e, speechSpeed); }); }
+            @Override
+            public void onFailure(String e) {
+                runOnUiThread(() -> {
+                    isLocated = false;
+                    speak("WiFi定位失败，请说我在加位置名称手动设置，例如我在门口", speechSpeed);
+                    updateDisplay("定位失败 | 说\"我在XX\"设置位置");
+                });
+            }
         });
     }
 
