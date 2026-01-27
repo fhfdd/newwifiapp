@@ -42,6 +42,8 @@ public class App extends Application {
             int existingCount = db.wifiFingerprintDao().getTotalCount();
             Log.d("App", "数据库中现有指纹数量：" + existingCount);
 
+            importAllFingerprintFiles();
+
             if (existingCount == 0 || prefs.getBoolean("force_reimport", false)) {
                 importAllFingerprintFiles();
                 prefs.edit().putBoolean("force_reimport", false).apply();
