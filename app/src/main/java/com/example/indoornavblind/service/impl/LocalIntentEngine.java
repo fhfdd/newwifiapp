@@ -74,8 +74,8 @@ public class LocalIntentEngine {
 
     // 导航相关关键词
     private static final String[] NAVIGATE_KEYWORDS = {
-            "去", "到", "导航", "前往", "带我去", "我要去", "怎么去", "走到", "帮我去",
-            "我想去", "带我到", "领我去", "去往", "navigate", "go to"
+            "去", "到", "导航", "前往", "带我去", "我要去", "怎么去", "走到",
+            "navigate", "go to", "take me to", "how to get to", "directions to", "guide me to"
     };
 
     // 定位相关关键词

@@ -673,6 +673,25 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         if (eventCallback != null) {
             eventCallback.onStepAnnounced(currentStepIndex, fullPath.size(), message, absoluteDirection);
         }
+
+        if (step.getDirection_cn() != null && step.getDirection_cn().contains("电梯")) {
+            isWaitingForElevator = true;
+            voiceService.speak("请乘坐电梯，到达后点击屏幕继续导航", baseSpeed);
+            navigationHandler.removeCallbacks(timerCheckRunnable); // 暂停自动播报
+        }
+    }
+
+    private boolean isWaitingForElevator = false;
+    public void confirmElevatorArrival() {
+        if (isWaitingForElevator) {
+            isWaitingForElevator = false;
+            voiceService.speak("已确认，继续导航", baseSpeed);
+            advanceToNextStepByTimer();
+        }
+    }
+
+    public boolean isWaitingForElevator() {
+        return isWaitingForElevator;
     }
 
     private void startLocationTracking() {
