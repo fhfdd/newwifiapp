@@ -187,6 +187,18 @@
                 android:padding="30dp"
                 android:layout_marginBottom="40dp"/>
 
+            <!-- ...步数  ... -->
+
+            <TextView
+                android:id="@+id/tv_unit_display"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="距离单位：步数"
+                android:textSize="28sp"
+                android:gravity="center"
+                android:padding="24dp"
+                android:background="#330000FF" />
+
             <!-- 操作提示 -->
             <TextView
                 android:layout_width="match_parent"

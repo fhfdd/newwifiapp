@@ -38,4 +38,22 @@
     <string name="emergency">紧急求助</string>
     <string name="locating">正在定位...</string>
     <string name="navigating">导航中...</string>
+
+
+    <string name="distance_unit_format">距离单位：%s</string>
+    <string name="unit_steps">步数</string>
+    <string name="unit_meters">米</string>
+    <string name="unit_steps_eng">steps</string>
+    <string name="unit_meters_eng">meters</string>
+
+    <string name="tts_distance_unit">距离单位：</string>
+    <string name="tts_distance_unit_eng">Distance unit: </string>
+
+
+    <string name="speech_rate">语速</string>
+    <string name="speech_rate_format">语速：%.1f倍</string>
+    <string name="times">倍</string>
+    <string name="language">语言</string>
+    <string name="language_format">语言：%s</string>
+    <string name="pace_format">播报间隔：%d秒</string>
 </resources>
