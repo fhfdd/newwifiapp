@@ -159,16 +159,26 @@ public class LocalIntentEngine {
     private void loadDestinations() {
         List<PathEntity> allPaths = PathParser.getAllPaths();
         for (PathEntity path : allPaths) {
-            String start = path.getStartLabel_cn();
-            String end = path.getEndLabel_cn();
-            if (!availableDestinations.contains(start)) {
-                availableDestinations.add(start);
+            // 加载中文
+            String startCn = path.getStartLabel_cn();
+            String endCn = path.getEndLabel_cn();
+            if (startCn != null && !availableDestinations.contains(startCn)) {
+                availableDestinations.add(startCn);
             }
-            if (!availableDestinations.contains(end)) {
-                availableDestinations.add(end);
+            if (endCn != null && !availableDestinations.contains(endCn)) {
+                availableDestinations.add(endCn);
+            }
+            // 加载英文
+            String startEn = path.getStartLabel_en();
+            String endEn = path.getEndLabel_en();
+            if (startEn != null && !availableDestinations.contains(startEn)) {
+                availableDestinations.add(startEn);
+            }
+            if (endEn != null && !availableDestinations.contains(endEn)) {
+                availableDestinations.add(endEn);
             }
         }
-        Log.d(TAG, "加载目的地列表: " + availableDestinations.size() + "个");
+        Log.d(TAG, "加载目的地列表: " + availableDestinations.size() + "个（含中英文）");
     }
 
     /**
@@ -348,28 +358,61 @@ public class LocalIntentEngine {
      * 在文本中查找目的地（支持模糊匹配）
      */
     private String findDestination(String text) {
-        String matched = null;
+        // 预处理：中文数字转阿拉伯数字
+        text = text.replace("零", "0").replace("一", "1").replace("二", "2")
+                .replace("三", "3").replace("四", "4").replace("五", "5")
+                .replace("六", "6").replace("七", "7").replace("八", "8").replace("九", "9");
 
-        // 精确匹配
+        String lowerText = text.toLowerCase();
+
+        // 1. 精确匹配目的地列表
         for (String dest : availableDestinations) {
-            if (text.contains(dest.toLowerCase())) {
-                matched = dest;
-                break;
+            if (lowerText.contains(dest.toLowerCase())) {
+                return dest;
             }
         }
 
-        // 模糊匹配
-        if (matched == null) {
-            for (String dest : availableDestinations) {
-                String simpleDest = dest.replace("a", "").replace("b", "");
-                if (text.contains(simpleDest.toLowerCase()) || fuzzyMatch(text, dest.toLowerCase())) {
-                    matched = dest;
-                    break;
+        // 2. 别名匹配：检查用户输入是否匹配某个别名
+        for (Map.Entry<String, String[]> entry : LOCATION_ALIASES.entrySet()) {
+            String canonical = entry.getKey();
+            for (String alias : entry.getValue()) {
+                if (lowerText.contains(alias.toLowerCase())) {
+                    // 找到别名，返回标准名或可用列表中的匹配项
+                    if (availableDestinations.contains(canonical)) {
+                        return canonical;
+                    }
+                    // 在可用目的地中查找包含此标准名的
+                    for (String dest : availableDestinations) {
+                        if (dest.toLowerCase().contains(canonical.toLowerCase()) ||
+                                canonical.toLowerCase().contains(dest.toLowerCase())) {
+                            return dest;
+                        }
+                    }
                 }
             }
         }
 
-        return matched;
+        // 3. 去除字母后缀匹配（C202a -> C202）
+        for (String dest : availableDestinations) {
+            String simpleDest = dest.replaceAll("[a-zA-Z]$", "").toLowerCase();
+            if (lowerText.contains(simpleDest) && simpleDest.length() >= 3) {
+                return dest;
+            }
+        }
+
+        return null;
+    }
+
+    private static final Map<String, String[]> LOCATION_ALIASES = new HashMap<>();
+    static {
+        // 厕所相关
+        LOCATION_ALIASES.put("男厕", new String[]{"男厕所", "male toilet", "male washroom", "男洗手间"});
+        LOCATION_ALIASES.put("女厕", new String[]{"女厕所", "female toilet", "female washroom", "女洗手间", "f washroom"});
+        LOCATION_ALIASES.put("厕所", new String[]{"洗手间", "toilet", "washroom", "卫生间", "wc"});
+        // 电梯相关
+        LOCATION_ALIASES.put("电梯", new String[]{"lift", "elevator", "升降机"});
+        // 拐弯点相关
+        LOCATION_ALIASES.put("拐弯点", new String[]{"岔路口", "拐点", "turning point", "junction"});
     }
 
     /**

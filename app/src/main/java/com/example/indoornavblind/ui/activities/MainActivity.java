@@ -75,9 +75,6 @@ public class MainActivity extends AppCompatActivity {
     private Handler longPressHandler = new Handler(Looper.getMainLooper());
     private Runnable longPressRunnable;
     private boolean isLongPressTriggered = false;
-
-    private int currentFloor = 1; // 默认楼层
-
     private Handler statusUpdateHandler = new Handler(Looper.getMainLooper());
     private Runnable statusUpdateRunnable;
 
@@ -198,6 +195,39 @@ public class MainActivity extends AppCompatActivity {
                 break;
             case HELP:
                 speak(intentEngine.getHelpText(), speechSpeed);
+                break;
+            case LOCATE:
+                startLocation();
+                break;
+            case QUERY_NEARBY:
+                if (currentPosition != null) announceNearbyPOIs(currentPosition);
+                else speak("请先定位", speechSpeed);
+                break;
+            case QUERY_PROGRESS:
+                if (navigationService.isNavigating()) {
+                    speak("导航进行中，请继续前进", speechSpeed);
+                } else {
+                    speak("当前没有进行导航", speechSpeed);
+                }
+                break;
+            case START_NAVIGATION:
+                if (hasDestination && currentPosition != null) {
+                    startNavigation(destinationName);
+                } else {
+                    speak("请先设置目的地并定位", speechSpeed);
+                }
+                break;
+            case SETTINGS:
+                enterSettingsMode();
+                break;
+            case SPEED_UP:
+                adjustSpeed(SPEED_STEP);
+                break;
+            case SPEED_DOWN:
+                adjustSpeed(-SPEED_STEP);
+                break;
+            case EMERGENCY:
+                btnEmergency.performClick();
                 break;
             default:
                 speak("未识别: " + command, speechSpeed);
@@ -468,14 +498,16 @@ public class MainActivity extends AppCompatActivity {
         }
         vibrate(50);
 
-        // 简化逻辑：单击只进行定位，不开始导航
+        if (navigationService.isWaitingForElevator()) {
+            navigationService.confirmElevatorArrival();
+            return;
+        }
+
         if (navigationService.isNavigating()) {
-            // 如果在导航中，只更新位置，不停止导航
             speak("正在更新位置", speechSpeed);
             updateDisplay("定位更新中...");
             updateCurrentLocation();
         } else {
-            // 不在导航中，只进行定位
             startLocation();
         }
     }
