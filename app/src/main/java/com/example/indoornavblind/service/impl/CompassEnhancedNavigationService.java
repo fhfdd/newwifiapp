@@ -398,6 +398,7 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
                     isTimerPaused = false;
                     segmentPausedTime += System.currentTimeMillis() - pauseStartTime;
                     Log.d(TAG, "计时器恢复，已累计暂停" + segmentPausedTime + "ms");
+                    showDebugToast("计时器恢复 | 暂停累计" + segmentPausedTime/1000 + "秒");
                     navigationHandler.post(timerCheckRunnable);
                 }
             } else {
@@ -405,11 +406,13 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
                     isTimerPaused = true;
                     pauseStartTime = System.currentTimeMillis();
                     Log.d(TAG, "计时器暂停");
+                    showDebugToast("检测静止 | 计时器暂停");
                     navigationHandler.removeCallbacks(timerCheckRunnable);
                 }
             }
         }
     }
+
 
     // 创建定时检查Runnable
     private Runnable timerCheckRunnable = new Runnable() {
@@ -469,6 +472,7 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         startMovementMonitor();
     }
 
+    // 替换 setupSegmentTimer 方法
     private void setupSegmentTimer(PathEntity step) {
         double segmentDistance = step.getDistanceMeters() > 0
                 ? step.getDistanceMeters()
@@ -486,6 +490,18 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
 
         Log.d(TAG, String.format("段计时器：距离%.1fm，预期%d步，约%d秒",
                 segmentDistance, expectedStepsForSegment, segmentExpectedDuration/1000));
+
+        // 显示调试Toast
+        showDebugToast(String.format("距离%.1fm | 步幅%.2fm | %d步 | %d秒",
+                segmentDistance, stepLength, expectedStepsForSegment, segmentExpectedDuration/1000));
+    }
+
+    private void showDebugToast(String msg) {
+        if (appContext != null) {
+            new Handler(Looper.getMainLooper()).post(() ->
+                    android.widget.Toast.makeText(appContext, msg, android.widget.Toast.LENGTH_SHORT).show()
+            );
+        }
     }
 
     public void setPositionUpdateCallback(PositionUpdateCallback callback) {
@@ -657,6 +673,27 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         if (eventCallback != null) {
             eventCallback.onStepAnnounced(currentStepIndex, fullPath.size(), message, absoluteDirection);
         }
+
+        if (step.getDirection_cn() != null && step.getDirection_cn().startsWith("乘电梯")) {
+            isWaitingForElevator = true;
+            voiceService.speak("请乘坐电梯，到达后点击屏幕继续导航", baseSpeed);
+            navigationHandler.removeCallbacks(timerCheckRunnable);
+        }
+    }
+
+    private boolean isWaitingForElevator = false;
+    public void confirmElevatorArrival() {
+        if (isWaitingForElevator) {
+            isWaitingForElevator = false;
+            isUserMoving = true; // 强制设置移动状态，绕过检测
+            stepsInCurrentSegment = expectedStepsForSegment; // 强制满足步数条件
+            voiceService.speak("已确认，继续导航", baseSpeed);
+            advanceToNextStepByTimer();
+        }
+    }
+
+    public boolean isWaitingForElevator() {
+        return isWaitingForElevator;
     }
 
     private void startLocationTracking() {

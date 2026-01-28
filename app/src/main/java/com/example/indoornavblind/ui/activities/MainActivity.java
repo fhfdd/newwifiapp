@@ -27,6 +27,7 @@ import com.example.indoornavblind.service.PathStorageService;
 import com.example.indoornavblind.service.impl.CompassEnhancedNavigationService;
 import com.example.indoornavblind.service.impl.L_KnnLocationService;
 import com.example.indoornavblind.service.L_WiFiScannerServiceImpl;
+import com.example.indoornavblind.service.impl.LocalIntentEngine;
 import com.example.indoornavblind.util.NavigationDataInitializer;
 import com.example.indoornavblind.util.PathParser;
 import com.example.indoornavblind.util.PermissionUtil;
@@ -69,12 +70,11 @@ public class MainActivity extends AppCompatActivity {
     private int navigationPace = 5000;
     private String lastSpokenText = "";
 
+    private LocalIntentEngine intentEngine;
+
     private Handler longPressHandler = new Handler(Looper.getMainLooper());
     private Runnable longPressRunnable;
     private boolean isLongPressTriggered = false;
-
-    private int currentFloor = 1; // 默认楼层
-
     private Handler statusUpdateHandler = new Handler(Looper.getMainLooper());
     private Runnable statusUpdateRunnable;
 
@@ -154,144 +154,83 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void processVoiceCommand(String command) {
-        if (command == null || command.trim().isEmpty()) {
-            return;
-        }
+        if (command == null || command.trim().isEmpty()) return;
 
-        String cmd = command.toLowerCase().trim();
-        Log.d(TAG, "处理语音命令: " + cmd);
+        LocalIntentEngine.IntentResult result = intentEngine.recognize(command);
+        Log.d(TAG, "意图识别: " + result);
 
-        // 楼层选择
-        if (cmd.contains("楼") && (cmd.contains("我在") || cmd.contains("设置"))) {
-            try {
-                int floor = Integer.parseInt(cmd.replaceAll("[^0-9]", ""));
-                if (floor >= 1 && floor <= 10) {
-                    currentFloor = floor;
-                    speak("已设置楼层为" + floor + "楼", speechSpeed);
-                    return;
-                }
-            } catch (Exception e) {
-                speak("请说清楚楼层，例如我在3楼", speechSpeed);
-            }
-            return;
-        }
-
-        // 1. 导航命令
-        if (cmd.contains("去") || cmd.contains("导航到") || cmd.contains("到") ||
-                cmd.contains("go to") || cmd.contains("navigate to")) {
-
-            // 提取目的地（简单逻辑）
-            String destination = cmd
-                    .replace("去", "")
-                    .replace("导航到", "")
-                    .replace("到", "")
-                    .replace("go to", "")
-                    .replace("navigate to", "")
-                    .trim();
-
-            if (!destination.isEmpty()) {
-                // 检查是否有同名地点需要确认楼层
-                List<Integer> floors = findFloorsForLocation(destination);
-                if (floors.size() > 1 && currentPosition != null) {
-                    // 同名地点存在多楼层，使用当前楼层
-                    destinationName = destination;
+        switch (result.intent) {
+            case NAVIGATE:
+                if (result.destination != null) {
+                    destinationName = result.destination;
                     hasDestination = true;
-                    speak("正在导航到" + currentPosition.getFloor() + "楼的" + destination, speechSpeed);
-                    startNavigation(destination);
-                } else if (floors.size() == 1) {
-                    destinationName = destination;
-                    hasDestination = true;
-                    speak("正在导航到" + destination, speechSpeed);
-                    startNavigation(destination);
+                    speak("正在导航到" + result.destination, speechSpeed);
+                    startNavigation(result.destination);
                 } else {
-                    speak("未找到" + destination + "，请说具体位置", speechSpeed);
+                    speak("请说出目的地", speechSpeed);
                 }
-                return;
-            }
-        }
-
-        // 1.5 手动设置位置（我在XX）- WiFi定位失败时的备用方案
-        if (cmd.contains("我在") || cmd.contains("我现在在") || cmd.contains("起点是") ||
-                cmd.contains("i am at") || cmd.contains("i'm at")) {
-
-            String location = cmd
-                    .replace("我在", "")
-                    .replace("我现在在", "")
-                    .replace("起点是", "")
-                    .replace("i am at", "")
-                    .replace("i'm at", "")
-                    .trim();
-
-            if (!location.isEmpty()) {
-                Position pos = findPositionByName(location);
-                if (pos != null) {
-                    currentPosition = pos;
-                    isLocated = true;
-                    navigationService.setCurrentPosition(pos);
-                    speak("已手动设置位置为" + pos.getLabel() + "。您可以说去哪里开始导航", speechSpeed);
-                    updateDisplay("当前位置：" + pos.getLabel());
+                break;
+            case SET_LOCATION:
+                if (result.destination != null) {
+                    Position pos = findPositionByName(result.destination);
+                    if (pos != null) {
+                        currentPosition = pos;
+                        isLocated = true;
+                        navigationService.setCurrentPosition(pos);
+                        speak("已设置位置为" + pos.getLabel(), speechSpeed);
+                    }
+                }
+                break;
+            case STOP_NAVIGATION:
+                if (navigationService.isNavigating()) {
+                    navigationService.stopNavigation();
+                    speak("导航已停止", speechSpeed);
+                }
+                break;
+            case QUERY_LOCATION:
+                speak(currentPosition != null ? "您在" + currentPosition.getLabel() : "位置未知", speechSpeed);
+                break;
+            case REPEAT:
+                if (!lastSpokenText.isEmpty()) speak(lastSpokenText, speechSpeed);
+                break;
+            case HELP:
+                speak(intentEngine.getHelpText(), speechSpeed);
+                break;
+            case LOCATE:
+                startLocation();
+                break;
+            case QUERY_NEARBY:
+                if (currentPosition != null) announceNearbyPOIs(currentPosition);
+                else speak("请先定位", speechSpeed);
+                break;
+            case QUERY_PROGRESS:
+                if (navigationService.isNavigating()) {
+                    speak("导航进行中，请继续前进", speechSpeed);
                 } else {
-                    speak("未找到位置：" + location + "。请说正确的位置名称", speechSpeed);
+                    speak("当前没有进行导航", speechSpeed);
                 }
-                return;
-            }
-        }
-
-
-        // 2. 位置查询
-        else if (cmd.contains("我在哪") || cmd.contains("位置") || cmd.contains("where am i") || cmd.contains("location")) {
-            if (currentPosition != null) {
-                speak("您当前在" + currentPosition.getLabel(), speechSpeed);
-            } else {
-                speak("当前位置未知，请先定位", speechSpeed);
-            }
-        }
-
-        // 3. 附近查询
-        else if (cmd.contains("附近") || cmd.contains("周围") || cmd.contains("nearby") || cmd.contains("what's around")) {
-            if (currentPosition != null) {
-                announceNearbyPOIs(currentPosition);
-            } else {
-                speak("请先定位", speechSpeed);
-            }
-        }
-
-        // 4. 停止导航
-        else if (cmd.contains("停止导航") || cmd.contains("取消导航") || cmd.contains("stop") || cmd.contains("cancel")) {
-            if (navigationService.isNavigating()) {
-                navigationService.stopNavigation();
-                speak("导航已停止", speechSpeed);
-            } else {
-                speak("当前没有进行中的导航", speechSpeed);
-            }
-        }
-
-// 5. 语言切换
-        else if (cmd.contains("切换英文") || cmd.contains("switch to english") || cmd.contains("english")) {
-            switchToLanguage(VoskSpeechRecognizerService.Language.ENGLISH);
-        }
-        else if (cmd.contains("切换中文") || cmd.contains("switch to chinese") || cmd.contains("chinese")) {
-            switchToLanguage(VoskSpeechRecognizerService.Language.CHINESE);
-        }
-        else if (cmd.contains("切换粤语") || cmd.contains("粤语") || cmd.contains("cantonese")) {
-            switchToLanguage(VoskSpeechRecognizerService.Language.CANTONESE);
-        }
-
-        // 6. 帮助
-        else if (cmd.contains("帮助") || cmd.contains("help")) {
-            speak("可以说：去某个地方、我在哪、附近有什么、停止导航、切换语言", speechSpeed);
-        }
-
-        // 7. 重复
-        else if (cmd.contains("重复") || cmd.contains("再说一遍") || cmd.contains("repeat")) {
-            if (!lastSpokenText.isEmpty()) {
-                speak(lastSpokenText, speechSpeed);
-            }
-        }
-
-        // 8. 未识别
-        else {
-            speak("未识别的指令: " + command, speechSpeed);
+                break;
+            case START_NAVIGATION:
+                if (hasDestination && currentPosition != null) {
+                    startNavigation(destinationName);
+                } else {
+                    speak("请先设置目的地并定位", speechSpeed);
+                }
+                break;
+            case SETTINGS:
+                enterSettingsMode();
+                break;
+            case SPEED_UP:
+                adjustSpeed(SPEED_STEP);
+                break;
+            case SPEED_DOWN:
+                adjustSpeed(-SPEED_STEP);
+                break;
+            case EMERGENCY:
+                btnEmergency.performClick();
+                break;
+            default:
+                speak("未识别: " + command, speechSpeed);
         }
     }
 
@@ -337,6 +276,8 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
         });
+
+        intentEngine = new LocalIntentEngine(this);
 
         // 5. 初始化WiFi和定位服务（和原来一样）
         wifiScanner = new L_WiFiScannerServiceImpl();
@@ -525,31 +466,7 @@ public class MainActivity extends AppCompatActivity {
         etVoiceSimulate.setOnEditorActionListener((v, actionId, event) -> {
             String input = etVoiceSimulate.getText().toString().trim();
             if (!input.isEmpty()) {
-                if (input.startsWith("我在") || input.toLowerCase().startsWith("i am at")) {
-                    // 直接处理位置输入
-                    if (input.startsWith("我在")) {
-                        String location = input.substring(2).trim();
-                        Position pos = findPositionByName(location);
-                        if (pos != null) {
-                            currentPosition = pos;
-                            isLocated = true;
-                            navigationService.setCurrentPosition(pos);
-                            speak("已设置当前位置为" + location, speechSpeed);
-                            updateDisplay("当前位置：" + location);
-                        } else {
-                            speak("未找到位置" + location, speechSpeed);
-                        }
-                    }
-                } else {
-                    destinationName = input;
-                    hasDestination = true;
-                    updateDisplay("目的地：" + destinationName);
-                    if (isLocated) speak("目的地已设置为" + destinationName + "，点击开始导航", speechSpeed);
-                    else {
-                        speak("目的地已设置为" + destinationName + "，正在定位", speechSpeed);
-                        startLocation();
-                    }
-                }
+                processVoiceCommand(input);
                 etVoiceSimulate.setText("");
             }
             return true;
@@ -581,14 +498,16 @@ public class MainActivity extends AppCompatActivity {
         }
         vibrate(50);
 
-        // 简化逻辑：单击只进行定位，不开始导航
+        if (navigationService.isWaitingForElevator()) {
+            navigationService.confirmElevatorArrival();
+            return;
+        }
+
         if (navigationService.isNavigating()) {
-            // 如果在导航中，只更新位置，不停止导航
             speak("正在更新位置", speechSpeed);
             updateDisplay("定位更新中...");
             updateCurrentLocation();
         } else {
-            // 不在导航中，只进行定位
             startLocation();
         }
     }

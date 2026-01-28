@@ -12,7 +12,7 @@ import java.util.*;
 
 public class PathParser {
     private static final String TAG = "PathParser";
-    private static final String[] FINGERPRINT_FILES = {"path_db.json","path_3a.json","path_2c.json"};
+    private static final String[] FINGERPRINT_FILES = {"path_3a.json","path_2c.json","path_3c.json"};
     private static List<PathEntity> allPaths = new ArrayList<>();
     private static boolean isInitialized = false;
     private static final Object LOCK = new Object();
@@ -71,48 +71,134 @@ public class PathParser {
      * 获取指定楼层的完整路径
      */
 
-    public static List<PathEntity> getFullPath(String start, String end, int floor) {
+    public static List<PathEntity> getFullPath(String start, String end, int startFloor) {
         if (!isInitialized || allPaths.isEmpty()) {
             return Collections.emptyList();
         }
+
+        // 节点格式: "label@floor"
+        String startNode = start + "@" + startFloor;
 
         Queue<String> queue = new LinkedList<>();
         Map<String, String> previous = new HashMap<>();
         Set<String> visited = new HashSet<>();
 
-        queue.offer(start);
-        visited.add(start);
+        queue.offer(startNode);
+        visited.add(startNode);
 
         while (!queue.isEmpty()) {
             String current = queue.poll();
+            String[] parts = current.split("@");
+            String currentLabel = parts[0];
+            int currentFloor = Integer.parseInt(parts[1]);
 
-            if (current.equals(end)) {
-                return reconstructPath(previous, start, end);
+            // 检查是否到达终点（任意楼层）
+            if (currentLabel.equals(end)) {
+                return reconstructPathCrossFloor(previous, startNode, current);
             }
 
+            // 遍历当前楼层的边
             for (PathEntity path : allPaths) {
                 int pathFloor = 0;
-                try {
-                    pathFloor = Integer.parseInt(String.valueOf(path.getFloor()));
-                } catch (Exception ignored) {}
-                if (pathFloor != floor) continue;
+                try { pathFloor = Integer.parseInt(String.valueOf(path.getFloor())); } catch (Exception ignored) {}
+                if (pathFloor != currentFloor) continue;
 
                 // 正向边
-                if (path.getStartLabel_cn().equals(current) && !visited.contains(path.getEndLabel_cn())) {
-                    queue.offer(path.getEndLabel_cn());
-                    visited.add(path.getEndLabel_cn());
-                    previous.put(path.getEndLabel_cn(), current);
+                if (path.getStartLabel_cn().equals(currentLabel)) {
+                    String nextNode = path.getEndLabel_cn() + "@" + pathFloor;
+                    if (!visited.contains(nextNode)) {
+                        queue.offer(nextNode);
+                        visited.add(nextNode);
+                        previous.put(nextNode, current);
+                    }
                 }
                 // 反向边
-                if (path.getEndLabel_cn().equals(current) && !visited.contains(path.getStartLabel_cn())) {
-                    queue.offer(path.getStartLabel_cn());
-                    visited.add(path.getStartLabel_cn());
-                    previous.put(path.getStartLabel_cn(), current);
+                if (path.getEndLabel_cn().equals(currentLabel)) {
+                    String nextNode = path.getStartLabel_cn() + "@" + pathFloor;
+                    if (!visited.contains(nextNode)) {
+                        queue.offer(nextNode);
+                        visited.add(nextNode);
+                        previous.put(nextNode, current);
+                    }
+                }
+            }
+
+            // 电梯跨层：如果当前是"电梯"，可以跨到其他楼层的"电梯"
+            if (currentLabel.equals("电梯")) {
+                for (PathEntity path : allPaths) {
+                    int pathFloor = 0;
+                    try { pathFloor = Integer.parseInt(String.valueOf(path.getFloor())); } catch (Exception ignored) {}
+                    if (pathFloor == currentFloor) continue; // 跳过同楼层
+
+                    if (path.getStartLabel_cn().equals("电梯") || path.getEndLabel_cn().equals("电梯")) {
+                        String nextNode = "电梯@" + pathFloor;
+                        if (!visited.contains(nextNode)) {
+                            queue.offer(nextNode);
+                            visited.add(nextNode);
+                            previous.put(nextNode, current);
+                        }
+                    }
                 }
             }
         }
 
         return Collections.emptyList();
+    }
+
+    private static List<PathEntity> reconstructPathCrossFloor(Map<String, String> previous, String start, String end) {
+        List<PathEntity> path = new ArrayList<>();
+        String current = end;
+
+        while (!current.equals(start)) {
+            String prev = previous.get(current);
+            if (prev == null) break;
+
+            String[] currParts = current.split("@");
+            String[] prevParts = prev.split("@");
+            String currLabel = currParts[0];
+            String prevLabel = prevParts[0];
+            int currFloor = Integer.parseInt(currParts[1]);
+            int prevFloor = Integer.parseInt(prevParts[1]);
+
+            if (prevFloor != currFloor) {
+                // 跨楼层（电梯）：创建虚拟边
+                PathEntity elevatorStep = new PathEntity();
+                elevatorStep.setStartLabel_cn("电梯");
+                elevatorStep.setEndLabel_cn("电梯");
+                elevatorStep.setFloor(currFloor);
+                elevatorStep.setDirection_cn("乘电梯到" + currFloor + "楼");
+                elevatorStep.setDirection_en("Take elevator to floor " + currFloor);
+                elevatorStep.setDirection_yue("搭電梯去" + currFloor + "樓");
+                elevatorStep.setDistance_cn("0米");
+                elevatorStep.setDistance_en("0 meters");
+                elevatorStep.setDistance_yue("0米");
+                path.add(0, elevatorStep);
+            } else {
+                PathEntity edge = findEdgeOnFloor(prevLabel, currLabel, currFloor);
+                if (edge != null) {
+                    path.add(0, edge);
+                }
+            }
+            current = prev;
+        }
+
+        return path;
+    }
+
+    private static PathEntity findEdgeOnFloor(String from, String to, int floor) {
+        for (PathEntity path : allPaths) {
+            int pathFloor = 0;
+            try { pathFloor = Integer.parseInt(String.valueOf(path.getFloor())); } catch (Exception ignored) {}
+            if (pathFloor != floor) continue;
+
+            if (path.getStartLabel_cn().equals(from) && path.getEndLabel_cn().equals(to)) {
+                return path;
+            }
+            if (path.getEndLabel_cn().equals(from) && path.getStartLabel_cn().equals(to)) {
+                return createReversedPath(path);
+            }
+        }
+        return null;
     }
 
     private static List<PathEntity> reconstructPath(Map<String, String> previous, String start, String end) {
@@ -205,5 +291,24 @@ public class PathParser {
             pois.add(path.getEndLabel_cn());
         }
         return new ArrayList<>(pois);
+    }
+
+    public static List<String> getNearbyPOIs(String currentLabel, int floor, int limit) {
+        Set<String> nearby = new LinkedHashSet<>();
+        if (currentLabel == null) return new ArrayList<>();
+
+        for (PathEntity path : allPaths) {
+            int pathFloor = 0;
+            try { pathFloor = Integer.parseInt(String.valueOf(path.getFloor())); } catch (Exception ignored) {}
+            if (pathFloor != floor) continue;
+
+            if (path.getStartLabel_cn().equals(currentLabel)) {
+                nearby.add(path.getEndLabel_cn());
+            } else if (path.getEndLabel_cn().equals(currentLabel)) {
+                nearby.add(path.getStartLabel_cn());
+            }
+            if (nearby.size() >= limit) break;
+        }
+        return new ArrayList<>(nearby);
     }
 }
