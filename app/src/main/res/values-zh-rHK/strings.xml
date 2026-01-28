@@ -31,4 +31,20 @@
     <string name="emergency_assistance">緊急求助已請求！請保持當前位置</string>
     <string name="nearby_locations">附近位置：桌子（5米）、廁所（10米）</string>
     <string name="command_not_recognized">無法識別指令，請嘗試「定位」「導航到廁所」等指令</string>
+    <string name="welcome">歡迎使用盲人室內導航系統</string>
+    <string name="current_location">目前位置</string>
+    <string name="emergency">緊急求助</string>
+    <string name="emergency">緊急求助</string>
+    <string name="locating">正在定位...</string>
+    <string name="navigating">導航中...</string>
+    <string name="distance_unit_format">距離單位：%s</string>
+    <string name="unit_steps">步數</string>
+    <string name="unit_meters">米</string>
+    <string name="tts_distance_unit">距離單位：</string>
+    <string name="speech_rate">語速</string>
+    <string name="speech_rate_format">語速：%.1f倍</string>
+    <string name="times">倍</string>
+    <string name="language">語言</string>
+    <string name="language_format">語言：%s</string>
+    <string name="pace_format">播報間隔：%d秒</string>
 </resources>

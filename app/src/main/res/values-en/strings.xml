@@ -31,4 +31,22 @@
     <string name="emergency_assistance">Emergency assistance requested! Please stay where you are.</string>
     <string name="nearby_locations">Nearby locations: Desk (5m), Toilet (10m)</string>
     <string name="command_not_recognized">Command not recognized. Try "Locate" or "Navigate to toilet".</string>
+    <string name="welcome">Welcome to the Blind Indoor Navigation System</string>
+    <string name="current_location">Current Location</string>
+    <string name="emergency">Emergency Help / SOS</string>
+    <string name="locating">Locating...</string>
+    <string name="navigating">Navigating...</string>
+    <string name="distance_unit_format">Distance unit: %s</string>
+    <string name="unit_steps">steps</string>
+    <string name="unit_meters">meters</string>
+    <string name="unit_steps_eng">steps</string>
+    <string name="unit_meters_eng">meters</string>
+    <string name="tts_distance_unit">Distance unit:</string>
+    <string name="tts_distance_unit_eng">Distance unit:</string>
+    <string name="speech_rate">Speech Rate / Speed</string>
+    <string name="speech_rate_format">Speech rate: %.1f×</string>
+    <string name="times">× (times)</string>
+    <string name="language">Language</string>
+    <string name="language_format">Language: %s</string>
+    <string name="pace_format">Announcement interval: %d seconds</string>
 </resources>
