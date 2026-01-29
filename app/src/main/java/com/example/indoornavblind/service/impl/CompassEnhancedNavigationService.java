@@ -737,6 +737,20 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
             eventCallback.onLocationUpdated(newPos);
         }
 
+        // 用WiFi定位校正导航步骤
+        if (isNavigating && fullPath != null && !fullPath.isEmpty()) {
+            for (int i = currentStepIndex; i < fullPath.size(); i++) {
+                PathEntity step = fullPath.get(i);
+                if (step.getEndLabel_cn().equals(newPos.getLabel())) {
+                    Log.d(TAG, "WiFi校正：跳到步骤" + (i + 1));
+                    currentStepIndex = i;
+                    navigationHandler.removeCallbacks(timerCheckRunnable);
+                    advanceToNextStepByTimer();
+                    break;
+                }
+            }
+        }
+
         Log.d(TAG, "位置更新: " + newPos.getLabel());
     }
 
