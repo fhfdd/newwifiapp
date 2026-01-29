@@ -316,25 +316,32 @@ public class C_TextToSpeechService implements VoiceService {
     /**
      * 新的带优先级speak方法（核心方法）
      */
+//    public void speak(String text, float speed, int priority, String source, boolean interruptible) {
+//        if (text == null || text.trim().isEmpty()) {
+//            return;
+//        }
+//
+//        // 如果被暂停且不是关键导航指令，忽略所有播报
+//        if (isPaused && priority < PRIORITY_CRITICAL) {
+//            Log.d(TAG, "当前处于暂停状态，忽略非关键播报: " + text);
+//            return;
+//        }
+//
+//        // 记录语音助手回答
+//        if ("assistant".equals(source)) {
+//            lastAssistantResponse = text;
+//        }
+//
+//        // 添加到列表并排序
+//        PendingUtterance utterance = new PendingUtterance(
+//                text, speed, priority, source, interruptible, utteranceCounter++);
     public void speak(String text, float speed, int priority, String source, boolean interruptible) {
         if (text == null || text.trim().isEmpty()) {
             return;
         }
-
-        // 如果被暂停且不是关键导航指令，忽略所有播报
-        if (isPaused && priority < PRIORITY_CRITICAL) {
-            Log.d(TAG, "当前处于暂停状态，忽略非关键播报: " + text);
-            return;
-        }
-
-        // 记录语音助手回答
-        if ("assistant".equals(source)) {
-            lastAssistantResponse = text;
-        }
-
-        // 添加到列表并排序
+        // ...
         PendingUtterance utterance = new PendingUtterance(
-                text, speed, priority, source, interruptible, utteranceCounter++);
+                text, currentSpeed, priority, source, interruptible, utteranceCounter++);
         utteranceList.add(utterance);
         Collections.sort(utteranceList, priorityComparator);
         Log.d(TAG, "添加到播报队列: " + text + " (优先级: " + priority + ", 来源: " + source + ")");
@@ -395,18 +402,27 @@ public class C_TextToSpeechService implements VoiceService {
         speakInternal(utterance.text, utterance.speed, utterance.priority, utterance.utteranceId);
     }
 
-    private void speakInternal(String text, float speed, int priority, String utteranceId) {
-        try {
-            if (tts == null) {
-                Log.e(TAG, "TTS对象为null");
-                checkAndRecoverTTS();
-                return;
-            }
+//    private void speakInternal(String text, float speed, int priority, String utteranceId) {
+//        try {
+//            if (tts == null) {
+//                Log.e(TAG, "TTS对象为null");
+//                checkAndRecoverTTS();
+//                return;
+//            }
+//
+//            // 设置语速
+//            tts.setSpeechRate(speed);
+//
+//            Bundle params = new Bundle();
+        private void speakInternal(String text, float speed, int priority, String utteranceId) {
+            try {
+                if (tts == null) {
+                    Log.e(TAG, "TTS对象为null");
+                    checkAndRecoverTTS();
+                    return;
+                }
 
-            // 设置语速
-            tts.setSpeechRate(speed);
-
-            Bundle params = new Bundle();
+        Bundle params = new Bundle();
             params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId);
 
             currentPriority = priority;
