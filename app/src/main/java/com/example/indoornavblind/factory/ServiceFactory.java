@@ -131,11 +131,14 @@ public class ServiceFactory {
     /**
      * 创建旧版语音识别服务（兼容性保留，但建议使用Vosk）
      */
+//    public com.example.indoornavblind.service.C_SpeechRecognizerService createSpeechRecognizerService() {
+//        com.example.indoornavblind.service.C_SpeechRecognizerService service =
+//                new com.example.indoornavblind.service.C_SpeechRecognizerService();
+//        service.init(context);
+//        return service;
+//    }
     public com.example.indoornavblind.service.C_SpeechRecognizerService createSpeechRecognizerService() {
-        com.example.indoornavblind.service.C_SpeechRecognizerService service =
-                new com.example.indoornavblind.service.C_SpeechRecognizerService();
-        service.init(context);
-        return service;
+        return new com.example.indoornavblind.service.C_SpeechRecognizerService();
     }
 
     public boolean isVoskReady() {
@@ -152,18 +155,25 @@ public class ServiceFactory {
     /**
      * 切换系统语言（同时切换Vosk和TTS）
      */
+//    public void switchLanguage(VoskSpeechRecognizerService.Language language) {
+//        // 切换Vosk识别语言
+//        if (voskService != null) {
+//            voskService.switchLanguage(language);
+//        }
+//
+//        // 切换TTS播报语言
+//        if (ttsService != null && ttsService.isReady()) {
+//            ttsService.setLanguage(language.locale);
+//        }
+//
+//        Log.d(TAG, "系统语言切换至: " + language.displayName);
+//    }
     public void switchLanguage(VoskSpeechRecognizerService.Language language) {
-        // 切换Vosk识别语言
+        // 仅切换Vosk识别语言（TTS由MainActivity统一管理）
         if (voskService != null) {
             voskService.switchLanguage(language);
         }
-
-        // 切换TTS播报语言
-        if (ttsService != null && ttsService.isReady()) {
-            ttsService.setLanguage(language.locale);
-        }
-
-        Log.d(TAG, "系统语言切换至: " + language.displayName);
+        Log.d(TAG, "Vosk语言切换至: " + language.displayName);
     }
 
     /**
