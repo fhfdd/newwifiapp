@@ -758,10 +758,14 @@ public class MainActivity extends AppCompatActivity {
         isSwitchingLanguage = true;
         currentLanguage = language;
 
+//        // 1. 先更新TTS（不依赖Vosk）
+//        if (ttsService != null && ttsService.isReady()) {
+//            ttsService.setLanguage(language.locale);
+//            ttsService.setSpeed(speechSpeed);
+//        }
         // 1. 先更新TTS（不依赖Vosk）
         if (ttsService != null && ttsService.isReady()) {
             ttsService.setLanguage(language.locale);
-            ttsService.setSpeed(speechSpeed);
         }
 
         // 2. Vosk单独切换，失败不影响其他
