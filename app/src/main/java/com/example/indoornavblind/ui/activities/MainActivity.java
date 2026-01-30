@@ -68,6 +68,7 @@ public class MainActivity extends AppCompatActivity {
     private float speechSpeed = 1.0f;
     private VoskSpeechRecognizerService.Language currentLanguage = VoskSpeechRecognizerService.Language.CHINESE;
     private int navigationPace = 5000;
+    private String lastNavigationInstruction = ""; // 新增
     private String lastSpokenText = "";
 
     private LocalIntentEngine intentEngine;
@@ -306,8 +307,10 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
 
+            // 第310-311行
             @Override
             public void onStepAnnounced(int stepIndex, int totalSteps, String instruction, String absoluteDirection) {
+                lastNavigationInstruction = instruction; // 新增这行
                 runOnUiThread(() -> updateDisplay(String.format("[%d/%d] %s", stepIndex, totalSteps, instruction)));
             }
 
@@ -416,7 +419,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void initListeners() {
         tvTopDisplay.setOnClickListener(v -> {
-            if (!lastSpokenText.isEmpty()) { speak(lastSpokenText, speechSpeed); vibrate(50); }
+            String toSpeak = !lastNavigationInstruction.isEmpty() ? lastNavigationInstruction : lastSpokenText;
+            if (!toSpeak.isEmpty()) { speak(toSpeak, speechSpeed); vibrate(50); }
         });
 
         setupLocateNavButton();
