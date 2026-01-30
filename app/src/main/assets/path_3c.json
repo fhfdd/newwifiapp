@@ -1,8 +1,8 @@
 [
   {
-    "startLabel_cn": "3楼电梯",
-    "startLabel_en": "3 floor elevator",
-    "startLabel_yue": "3楼電梯",
+    "startLabel_cn": "电梯",
+    "startLabel_en": "elevator",
+    "startLabel_yue": "電梯",
     "endLabel_cn": "C315",
     "endLabel_en": "C315",
     "endLabel_yue": "C315",
@@ -140,9 +140,9 @@
     "nextPoint_yue": "C319"
   },
   {
-    "startLabel_cn": "3楼电梯",
-    "startLabel_en": "3 floor elevator",
-    "startLabel_yue": "3楼電梯",
+    "startLabel_cn": "电梯",
+    "startLabel_en": "elevator",
+    "startLabel_yue": "電梯",
     "endLabel_cn": "C354a",
     "endLabel_en": "C354a",
     "endLabel_yue": "C354a",

@@ -40,9 +40,9 @@
     "nextPoint_yue": "學生/教職員飯堂"
   },
   {
-    "startLabel_cn": "2楼电梯",
-    "startLabel_en": "2 floor elevator",
-    "startLabel_yue": "2楼電梯",
+    "startLabel_cn": "电梯",
+    "startLabel_en": "elevator",
+    "startLabel_yue": "電梯",
     "endLabel_cn": "C217",
     "endLabel_en": "C217",
     "endLabel_yue": "C217",
@@ -161,9 +161,9 @@
   },
 
   {
-    "startLabel_cn": "2楼电梯",
-    "startLabel_en": "2 floor elevator",
-    "startLabel_yue": "2楼電梯",
+    "startLabel_cn": "电梯",
+    "startLabel_en": "elevator",
+    "startLabel_yue": "電梯",
     "endLabel_cn": "C214",
     "endLabel_en": "C214",
     "endLabel_yue": "C214",
