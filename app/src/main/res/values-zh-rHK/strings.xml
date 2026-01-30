@@ -34,7 +34,6 @@
     <string name="welcome">歡迎使用盲人室內導航系統</string>
     <string name="current_location">目前位置</string>
     <string name="emergency">緊急求助</string>
-    <string name="emergency">緊急求助</string>
     <string name="locating">正在定位...</string>
     <string name="navigating">導航中...</string>
     <string name="distance_unit_format">距離單位：%s</string>
