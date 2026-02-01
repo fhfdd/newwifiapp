@@ -12,7 +12,7 @@ import com.example.indoornavblind.database.entity.NavigationNodeEntity;
 
 @Database(
         entities = {PositionEntity.class, WiFiFingerprintEntity.class, NavigationNodeEntity.class},
-        version = 4,
+        version = 5,
         exportSchema = false
 )
 public abstract class AppDatabase extends RoomDatabase {

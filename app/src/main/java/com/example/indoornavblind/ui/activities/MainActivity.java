@@ -19,8 +19,8 @@ import com.example.indoornavblind.database.NavigationNodeDao;
 import com.example.indoornavblind.database.entity.NavigationNodeEntity;
 import com.example.indoornavblind.model.PathEntity;
 import com.example.indoornavblind.model.Position;
+import com.example.indoornavblind.service.C_SpeechRecognizerService;
 import com.example.indoornavblind.service.LocationService;
-import com.example.indoornavblind.service.VoiceService;
 import com.example.indoornavblind.service.WiFiScannerService;
 import com.example.indoornavblind.service.VoskSpeechRecognizerService;
 import com.example.indoornavblind.service.PathStorageService;
@@ -70,6 +70,14 @@ public class MainActivity extends AppCompatActivity {
     private int navigationPace = 5000;
     private String lastNavigationInstruction = ""; // 新增
     private String lastSpokenText = "";
+    private String lastRecognizedText = ""; // 最后识别的Vosk内容
+
+    // TTS回声保护机制
+    private long lastTtsStartTime = 0;
+    private long lastTtsEndTime = 0;
+    private static final long TTS_ECHO_WINDOW_MS = 3000; // TTS开始后3秒内的识别结果视为回声
+    private static final long TTS_END_ECHO_WINDOW_MS = 3000; // TTS结束后3秒内的识别结果也视为回声（增加延迟）
+    private static final long VOSK_RECOVERY_DELAY = 300; // Vosk恢复延迟300ms
 
     private LocalIntentEngine intentEngine;
 
@@ -80,6 +88,7 @@ public class MainActivity extends AppCompatActivity {
     private Runnable statusUpdateRunnable;
 
     private GestureDetector gestureDetector;
+    private VoskSpeechRecognizerService.OnRecognitionListener voskServiceListener;  // 保存原有监听器
     private static final float SPEED_STEP = 0.1f;
     private static final float SPEED_MIN = 0.5f;
     private static final float SPEED_MAX = 2.0f;
@@ -218,8 +227,15 @@ public class MainActivity extends AppCompatActivity {
                     speak("请先设置目的地并定位", speechSpeed);
                 }
                 break;
-            case SETTINGS:
+            case ENTER_SETTINGS:
                 enterSettingsMode();
+                break;
+            case EXIT_SETTINGS:
+                if (isInSettingsMode) {
+                    exitSettingsMode();
+                } else {
+                    speak("当前不在设置模式", speechSpeed);
+                }
                 break;
             case SPEED_UP:
                 adjustSpeed(SPEED_STEP);
@@ -229,6 +245,22 @@ public class MainActivity extends AppCompatActivity {
                 break;
             case EMERGENCY:
                 btnEmergency.performClick();
+                break;
+            case VOICE_ASSISTANT:
+                btnVoiceAssistant.performClick();
+                break;
+            case CONTINUE_NAVIGATION:
+                if (hasDestination && currentPosition != null) {
+                    startNavigation(destinationName);
+                } else {
+                    speak("请先设置目的地并定位", speechSpeed);
+                }
+                break;
+            case FLOOR_UP:
+                speak("请使用楼梯或电梯上楼", speechSpeed);
+                break;
+            case FLOOR_DOWN:
+                speak("请使用楼梯或电梯下楼", speechSpeed);
                 break;
             default:
                 speak("未识别: " + command, speechSpeed);
@@ -244,39 +276,139 @@ public class MainActivity extends AppCompatActivity {
         // 2. 获取TTS服务（语音播报）
         ttsService = serviceFactory.getTtsService();
 
+        // 2.1 设置TTS状态监听器，用于控制Vosk监听（防止回声识别）
+        ttsService.setTTSSpeechListener(new C_TextToSpeechService.TTSSpeechListener() {
+            @Override
+            public void onSpeechStart() {
+                Log.d(TAG, "TTS开始播报，停止Vosk监听");
+                // 记录TTS开始时间，用于回声保护
+                lastTtsStartTime = System.currentTimeMillis();
+                // 在UI线程中执行：先设置TTS状态，再停止Vosk
+                runOnUiThread(() -> {
+                    if (voskService != null) {
+                        // 先设置TTS播报状态标志
+                        voskService.setTtsSpeaking(true);
+                        // 无论是否正在监听，都调用pauseForTTS确保Vosk完全停止
+                        // 因为isListening可能在Vosk返回结果后已被设为false，但服务仍在运行
+                        voskService.pauseForTTS();
+                        Log.d(TAG, "Vosk已完全停止（TTS播报中）");
+                    }
+                });
+            }
+
+            @Override
+            public void onSpeechDone() {
+                Log.d(TAG, "TTS播报完成");
+                // 记录TTS结束时间，用于回声保护
+                lastTtsEndTime = System.currentTimeMillis();
+                // 在UI线程中执行：先重置TTS状态，再延迟恢复Vosk
+                runOnUiThread(() -> {
+                    if (voskService != null) {
+                        voskService.setTtsSpeaking(false);
+                        Log.d(TAG, "TTS状态已重置，isSpeaking=" + ttsService.isSpeaking() + ", queueSize=" + ttsService.getQueueSize());
+                    }
+                    // 延迟恢复Vosk监听
+                    Log.d(TAG, "安排" + VOSK_RECOVERY_DELAY + "ms后重启Vosk");
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        Log.d(TAG, "Vosk重启定时器触发，voskService=" + (voskService != null ? "非空" : "null") +
+                            ", isInSettingsMode=" + isInSettingsMode +
+                            ", isSpeaking=" + (ttsService != null ? ttsService.isSpeaking() : "null") +
+                            ", queueSize=" + (ttsService != null ? ttsService.getQueueSize() : "null"));
+                        runOnUiThread(() -> {
+                            if (voskService != null) {
+                                voskService.resumeAfterTTS();
+                                Log.d(TAG, "Vosk监听已恢复（isInSettingsMode=" + isInSettingsMode + "）");
+                            } else {
+                                Log.d(TAG, "Vosk未恢复: voskService=null");
+                            }
+                        });
+                    }, VOSK_RECOVERY_DELAY);
+                });
+            }
+
+            @Override
+            public void onSpeechError(String errorMessage) {
+                Log.d(TAG, "TTS播报出错，恢复Vosk监听");
+                // 记录TTS结束时间，用于回声保护
+                lastTtsEndTime = System.currentTimeMillis();
+                // 在UI线程中执行：先重置TTS状态，再恢复Vosk
+                runOnUiThread(() -> {
+                    if (voskService != null) {
+                        voskService.setTtsSpeaking(false);
+                        if (!isInSettingsMode) {
+                            voskService.resumeAfterTTS();
+                            Log.d(TAG, "Vosk监听已恢复（TTS错误后）");
+                        }
+                    }
+                });
+            }
+        });
+
         // 3. 获取Vosk服务（语音识别）
         voskService = serviceFactory.getVoskService();
 
         // 4. 设置Vosk识别监听器（直接处理语音指令）
-        voskService.setRecognitionListener(new VoskSpeechRecognizerService.OnRecognitionListener() {
+        voskServiceListener = new VoskSpeechRecognizerService.OnRecognitionListener() {
 
             @Override
             public void onResult(ArrayList<String> results) {
                 if (results != null && !results.isEmpty()) {
-                    String command = results.get(0);
+                    String command = cleanRecognizedText(results.get(0));
                     Log.d(TAG, "Vosk识别结果: " + command);
+
+                    // 关键修复：检查TTS是否正在播报，避免回声识别
+                    if (ttsService != null && ttsService.isSpeaking()) {
+                        Log.d(TAG, "TTS正在播报，忽略可能是回声的识别结果");
+                        // 不处理这个结果，不重启监听（由TTS监听器控制）
+                        return;
+                    }
+
+                    // 额外保护：检查是否在TTS开始后的回声窗口期内
+                    long timeSinceTtsStart = System.currentTimeMillis() - lastTtsStartTime;
+                    if (timeSinceTtsStart < TTS_ECHO_WINDOW_MS) {
+                        Log.d(TAG, "TTS开始后" + timeSinceTtsStart + "ms内的识别，忽略可能是回声的识别结果: " + command);
+                        return;
+                    }
+
+                    // 额外保护：检查是否在TTS结束后的回声窗口期内（处理延迟到达的识别结果）
+                    long timeSinceTtsEnd = System.currentTimeMillis() - lastTtsEndTime;
+                    if (timeSinceTtsEnd < TTS_END_ECHO_WINDOW_MS) {
+                        Log.d(TAG, "TTS结束后" + timeSinceTtsEnd + "ms内的识别，忽略可能是回声的识别结果: " + command);
+                        return;
+                    }
+
                     runOnUiThread(() -> {
+                        lastRecognizedText = command;
                         updateDisplay("你说: " + command);
                         processVoiceCommand(command);
                     });
                 }
 
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    if (voskService != null && voskService.isInitialized() && !isInSettingsMode) {
-                        Log.d(TAG, "自动重启语音监听");
-                        voskService.startListening();
-                    }
-                }, 1500); // 延迟增加到1.5秒避免TTS干扰
+                // 注意：不再自动重启监听，完全由TTS监听器控制
             }
 
             @Override
             public void onError(String errorMsg) {
                 Log.e(TAG, "Vosk识别错误: " + errorMsg);
+                // 检查是否在TTS保护窗口期内
+                if (ttsService != null && ttsService.isSpeaking()) {
+                    return; // 静默忽略，不处理错误
+                }
+                long timeSinceTtsStart = System.currentTimeMillis() - lastTtsStartTime;
+                long timeSinceTtsEnd = System.currentTimeMillis() - lastTtsEndTime;
+                if (timeSinceTtsStart < TTS_ECHO_WINDOW_MS || timeSinceTtsEnd < TTS_END_ECHO_WINDOW_MS) {
+                    return; // 静默忽略，不处理错误
+                }
                 runOnUiThread(() -> {
-                    speak("识别失败，请重试", speechSpeed);
+                    // 只有TTS未播报时才播报错误，避免TTS循环
+                    if (ttsService != null && !ttsService.isSpeaking()) {
+                        speak("识别失败，请重试", speechSpeed);
+                    }
                 });
+                // 错误后也不重启监听，由TTS监听器控制
             }
-        });
+        };
+        voskService.setRecognitionListener(voskServiceListener);
 
         intentEngine = new LocalIntentEngine(this);
 
@@ -431,20 +563,45 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
-            // 使用Vosk服务，而不是voiceAssistant
+            // 检查录音权限
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    speak("需要录音权限", speechSpeed);
+                    requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, 100);
+                    return;
+                }
+            }
+
             if (voskService != null && voskService.isInitialized()) {
                 speak("请说出您的指令", speechSpeed);
                 vibrate(100);
-
-                // 延迟开始监听，避免TTS干扰
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
                     voskService.startListening();
                     updateDisplay("正在聆听...");
                 }, 800);
+            } else if (serviceFactory != null) {
+                // 备用：使用Google语音识别
+//                C_SpeechRecognizerService googleSR = serviceFactory.createSpeechRecognizerService();
+//                googleSR.init(this);
+//                googleSR.setRecognitionListener(new C_SpeechRecognizerService.OnRecognitionListener() {
+//                    @Override
+//                    public void onResult(ArrayList<String> results) {
+//                        if (results != null && !results.isEmpty()) {
+//                            processVoiceCommand(results.get(0));
+//                        }
+//                        googleSR.destroy();
+//                    }
+//                    @Override
+//                    public void onError(String errorMsg) {
+//                        speak("识别失败：" + errorMsg, speechSpeed);
+//                        googleSR.destroy();
+//                    }
+//                });
+//                googleSR.startListening();
             } else {
+                // 文本输入fallback
                 String input = etVoiceSimulate.getText().toString().trim();
                 if (!input.isEmpty()) {
-                    // 手动输入模式
                     processVoiceCommand(input);
                     etVoiceSimulate.setText("");
                 } else {
@@ -452,7 +609,6 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-
         btnSettings.setOnClickListener(v -> enterSettingsMode());
 
         btnEmergency.setOnClickListener(v -> {
@@ -825,9 +981,26 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateDisplay(String text) { if (tvTopDisplay != null) tvTopDisplay.setText(text); }
 
+    /**
+     * 清理语音识别结果，去除文字间的间隔
+     * 去除首尾空格、连续空格、空格换行等
+     */
+    private String cleanRecognizedText(String text) {
+        if (text == null) return "";
+        // 去除首尾空格
+        String cleaned = text.trim();
+        // 去除连续多个空格，替换为单个空格
+        cleaned = cleaned.replaceAll("\\s+", " ");
+        // 去除换行符等空白字符
+        cleaned = cleaned.replaceAll("[\\n\\r\\t]", " ");
+        // 去除特殊空格字符（全角空格等）
+        cleaned = cleaned.replaceAll("[　]+", "").replaceAll("[ \u00A0\u1680\u180E\u2000-\u200B\u202F\u205F\u3000\uFEFF]+", " ");
+        return cleaned.trim();
+    }
+
     private void speak(String text, float speed) {
         lastSpokenText = text;
-        updateDisplay(text);
+        // 不再覆盖tv_top_display的显示，让其保持显示Vosk识别的内容
 
         // 检查音频状态
         android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);

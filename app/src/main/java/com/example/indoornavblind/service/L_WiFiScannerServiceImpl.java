@@ -142,7 +142,7 @@ public class L_WiFiScannerServiceImpl implements WiFiScannerService {
 
     @Override
     public boolean hasPermission() {
-        // 调用修复后的checkPermissions（传入Context参数）
-        return PermissionUtil.hasAllPermissions(context);
+        // 使用专门的WiFi扫描权限检查，支持Android 13+的新权限
+        return PermissionUtil.hasWiFiScanPermission(context);
     }
 }

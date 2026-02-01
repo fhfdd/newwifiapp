@@ -1,23 +1,21 @@
 package com.example.indoornavblind.service;
 
 import android.content.Context;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.speech.tts.TextToSpeech;
-import android.speech.tts.UtteranceProgressListener;
 import android.util.Log;
+
+import com.example.indoornavblind.util.TTSUtil;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Queue;
 import java.util.UUID;
 
 /**
- * 文字转语音服务实现 - 增强版（带优先级管理）
+ * 文字转语音服务实现 - 基于TTSUtil（带优���级管理）
  *
  * 增强内容：
  * 1. 重试机制：TTS初始化失败时自动重试（最多3次）
@@ -26,9 +24,31 @@ import java.util.UUID;
  * 4. 状态管理：精确跟踪初始化和播报状态
  * 5. 强制恢复：提供手动重新初始化方法
  * 6. 优先级管理：不同语音类型有不同的优先级和打断策略
+ * 7. TTS状态监听：允许外部监听播报状态变化，用于控制语音识别
  */
 public class C_TextToSpeechService implements VoiceService {
     private static final String TAG = "TextToSpeechService";
+
+    /**
+     * TTS播报状态监听器接口
+     * 用于控制语音识别服务，避免回声识别
+     */
+    public interface TTSSpeechListener {
+        /**
+         * TTS开始播���时调用（建议停止语音识别）
+         */
+        void onSpeechStart();
+
+        /**
+         * TTS播报完成时调用（可以恢复语音识别）
+         */
+        void onSpeechDone();
+
+        /**
+         * TTS播报出错时调用（可以恢复语音识别）
+         */
+        void onSpeechError(String errorMessage);
+    }
 
     // 优先级常量
     public static final int PRIORITY_CRITICAL = 100;      // 关键导航指令（左转、右转等），可打断所有
@@ -42,7 +62,7 @@ public class C_TextToSpeechService implements VoiceService {
     private static final long INIT_RETRY_DELAY = 1000; // 1秒
     private static final long SPEAK_TIMEOUT = 10000; // 10秒超时
 
-    private TextToSpeech tts;
+    private TTSUtil ttsUtil;
     private Context context;
     private boolean isInitialized = false;
     private boolean isInitializing = false;
@@ -61,8 +81,16 @@ public class C_TextToSpeechService implements VoiceService {
     // 记录上次语音助手回答
     private String lastAssistantResponse = "";
     private int currentPriority = 0;
+
+    // 重复播报检测
+    private String lastSpokenText = "";
+    private long lastSpokenTime = 0;
+    private static final long DUPLICATE_WINDOW_MS = 3000; // 3秒内相同内容视为重复
     private boolean isPaused = false; // 是否暂停（用户正在听内容）
     private long utteranceCounter = 0; // 用于插入顺序排序
+
+    // TTS状态监听器（用于控制Vosk语音识别）
+    private TTSSpeechListener ttsSpeechListener;
 
     /**
      * 待播报内容类 - 支持优先级
@@ -107,8 +135,9 @@ public class C_TextToSpeechService implements VoiceService {
     @Override
     public void init(Context context) {
         this.context = context;
-        if (tts != null) {
-            tts.shutdown();
+        if (ttsUtil != null) {
+            ttsUtil.stop();
+            ttsUtil.release();
         }
         initRetryCount = 0;
         initTTS();
@@ -123,9 +152,9 @@ public class C_TextToSpeechService implements VoiceService {
         isInitializing = true;
         isInitialized = false;
 
-        if (tts != null) {
+        if (ttsUtil != null) {
             try {
-                tts.shutdown();
+                ttsUtil.release();
             } catch (Exception e) {
                 Log.e(TAG, "关闭旧TTS实例时出错", e);
             }
@@ -133,112 +162,75 @@ public class C_TextToSpeechService implements VoiceService {
 
         Log.d(TAG, "开始初始化TTS，第" + (initRetryCount + 1) + "次尝试");
 
-// 尝试获取可用的TTS引擎
-        String engine = getAvailableTtsEngine();
-        tts = new TextToSpeech(context, status -> {
-            isInitializing = false;
-
-            if (status == TextToSpeech.SUCCESS) {
-                int result = tts.setLanguage(currentLocale);
-                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                    Log.e(TAG, "TTS语言不支持: " + currentLocale.getDisplayLanguage());
-                    // 回退到系统默认语言
-                    tts.setLanguage(Locale.getDefault());
-                }
-                tts.setSpeechRate(currentSpeed);
+        // 使用TTSUtil初始化
+        ttsUtil = new TTSUtil(context, new TTSUtil.TTSListener() {
+            @Override
+            public void onInitSuccess() {
+                isInitializing = false;
                 isInitialized = true;
                 initRetryCount = 0; // 重置重试计数
+
+                // 设置默认语言和语速
+                ttsUtil.setDefaultLocale(currentLocale);
+                ttsUtil.setDefaultSpeechRate(currentSpeed);
+
                 Log.d(TAG, "TTS初始化成功");
 
                 // 处理队列中等待的内容
                 processQueue();
-            } else {
-                Log.e(TAG, "TTS初始化失败，状态码: " + status);
+            }
+
+            @Override
+            public void onInitFailure() {
+                isInitializing = false;
                 isInitialized = false;
+                Log.e(TAG, "TTS初始化失败");
 
                 // 重试逻辑
                 if (initRetryCount < MAX_INIT_RETRIES) {
                     initRetryCount++;
                     Log.d(TAG, "TTS初始化失败，" + INIT_RETRY_DELAY + "ms后重试（第" + initRetryCount + "次）");
-                    mainHandler.postDelayed(this::initTTS, INIT_RETRY_DELAY);
+                    mainHandler.postDelayed(() -> initTTS(), INIT_RETRY_DELAY);
                 } else {
                     Log.e(TAG, "TTS初始化失败，已达到最大重试次数");
                 }
             }
-        });
 
-        // 设置进度监听器
-        setupUtteranceListener();
-    }
-
-    /**
-     * 获取可用的TTS引擎
-     */
-    private String getAvailableTtsEngine() {
-        // 优先顺序：小米/华为/三星自带 > 讯飞 > Google > 系统默认
-        String[] preferredEngines = {
-                "com.xiaomi.mibrain.speech",           // 小米
-                "com.huawei.hiai.engineservice",       // 华为
-                "com.samsung.SMT",                     // 三星
-                "com.iflytek.speechcloud",             // 讯飞
-                "com.google.android.tts",              // Google
-        };
-
-        List<TextToSpeech.EngineInfo> engines = null;
-        try {
-            TextToSpeech tempTts = new TextToSpeech(context, null);
-            engines = tempTts.getEngines();
-            tempTts.shutdown();
-        } catch (Exception e) {
-            Log.e(TAG, "获取TTS引擎列表失败", e);
-            return null;
-        }
-
-        if (engines != null) {
-            for (String preferred : preferredEngines) {
-                for (TextToSpeech.EngineInfo info : engines) {
-                    if (info.name.equals(preferred)) {
-                        Log.d(TAG, "使用TTS引擎: " + preferred);
-                        return preferred;
-                    }
-                }
-            }
-        }
-
-        Log.d(TAG, "使用系统默认TTS引擎");
-        return null; // 使用默认
-    }
-
-    /**
-     * 设置播报进度监听器
-     */
-    private void setupUtteranceListener() {
-        if (tts == null) return;
-
-        tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
             @Override
-            public void onStart(String utteranceId) {
+            public void onSpeechStart(String utteranceId) {
                 Log.d(TAG, "开始播报: " + utteranceId + " (优先级: " + currentPriority + ")");
                 isSpeaking = true;
                 startTimeoutCheck();
+                // 通知监听器：TTS开始播报，外部应停止语音识别
+                if (ttsSpeechListener != null) {
+                    ttsSpeechListener.onSpeechStart();
+                }
             }
 
             @Override
-            public void onDone(String utteranceId) {
-                Log.d(TAG, "播报完成: " + utteranceId);
+            public void onSpeechDone() {
+                Log.d(TAG, "播报完成");
                 isSpeaking = false;
                 currentPriority = 0;
                 cancelTimeoutCheck();
+                // 通知监听器：TTS播报完成，外部可以恢复语音识别
+                if (ttsSpeechListener != null) {
+                    ttsSpeechListener.onSpeechDone();
+                }
                 // 处理队列中的下一条
                 mainHandler.post(() -> processQueue());
             }
 
             @Override
-            public void onError(String utteranceId) {
-                Log.e(TAG, "播报错误: " + utteranceId);
+            public void onSpeechError(String errorMessage) {
+                Log.e(TAG, "播报错误: " + errorMessage);
                 isSpeaking = false;
                 currentPriority = 0;
                 cancelTimeoutCheck();
+                // 通知监听器：TTS播报出错，外部可以恢复语音识别
+                if (ttsSpeechListener != null) {
+                    ttsSpeechListener.onSpeechError(errorMessage);
+                }
                 // 尝试重新初始化并处理队列
                 checkAndRecoverTTS();
             }
@@ -281,31 +273,14 @@ public class C_TextToSpeechService implements VoiceService {
         Log.w(TAG, "检查TTS状态并尝试恢复...");
 
         // 如果TTS对象为空或未初始化，重新初始化
-        if (tts == null || !isInitialized) {
+        if (ttsUtil == null || !isInitialized) {
             initRetryCount = 0;
             initTTS();
             return;
         }
 
-        // 尝试播报空字符串测试TTS是否正常
-        try {
-            Bundle params = new Bundle();
-            params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "test");
-            int result = tts.speak("", TextToSpeech.QUEUE_ADD, params, "test");
-
-            if (result == TextToSpeech.ERROR) {
-                Log.e(TAG, "TTS测试失败，重新初始化");
-                initRetryCount = 0;
-                initTTS();
-            } else {
-                // TTS正常，处理队列
-                processQueue();
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "TTS测试异常，重新初始化", e);
-            initRetryCount = 0;
-            initTTS();
-        }
+        // TTS正常，处理队列
+        processQueue();
     }
 
     @Override
@@ -316,32 +291,20 @@ public class C_TextToSpeechService implements VoiceService {
     /**
      * 新的带优先级speak方法（核心方法）
      */
-//    public void speak(String text, float speed, int priority, String source, boolean interruptible) {
-//        if (text == null || text.trim().isEmpty()) {
-//            return;
-//        }
-//
-//        // 如果被暂停且不是关键导航指令，忽略所有播报
-//        if (isPaused && priority < PRIORITY_CRITICAL) {
-//            Log.d(TAG, "当前处于暂停状态，忽略非关键播报: " + text);
-//            return;
-//        }
-//
-//        // 记录语音助手回答
-//        if ("assistant".equals(source)) {
-//            lastAssistantResponse = text;
-//        }
-//
-//        // 添加到列表并排序
-//        PendingUtterance utterance = new PendingUtterance(
-//                text, speed, priority, source, interruptible, utteranceCounter++);
     public void speak(String text, float speed, int priority, String source, boolean interruptible) {
         if (text == null || text.trim().isEmpty()) {
             return;
         }
-        // ...
+
+        // 重复内容检测：3秒内相同内容视为重复，跳过播报
+        long currentTime = System.currentTimeMillis();
+        if (text.equals(lastSpokenText) && (currentTime - lastSpokenTime) < DUPLICATE_WINDOW_MS) {
+            Log.d(TAG, "跳过重复播报（" + (currentTime - lastSpokenTime) + "ms内）: " + text);
+            return;
+        }
+
         PendingUtterance utterance = new PendingUtterance(
-                text, currentSpeed, priority, source, interruptible, utteranceCounter++);
+                text, speed, priority, source, interruptible, utteranceCounter++);
         utteranceList.add(utterance);
         Collections.sort(utteranceList, priorityComparator);
         Log.d(TAG, "添加到播报队列: " + text + " (优先级: " + priority + ", 来源: " + source + ")");
@@ -354,7 +317,7 @@ public class C_TextToSpeechService implements VoiceService {
                     // 新消息优先级更高，检查当前是否可打断
                     if (next.interruptible) {
                         Log.d(TAG, "高优先级消息(" + next.priority + ")，打断当前播报(" + currentPriority + ")");
-                        tts.stop();
+                        ttsUtil.stop();
                         isSpeaking = false;
                         currentPriority = 0;
                         processQueue();
@@ -399,47 +362,41 @@ public class C_TextToSpeechService implements VoiceService {
             return;
         }
 
-        speakInternal(utterance.text, utterance.speed, utterance.priority, utterance.utteranceId);
+        speakInternal(utterance);
     }
 
-//    private void speakInternal(String text, float speed, int priority, String utteranceId) {
-//        try {
-//            if (tts == null) {
-//                Log.e(TAG, "TTS对象为null");
-//                checkAndRecoverTTS();
-//                return;
-//            }
-//
-//            // 设置语速
-//            tts.setSpeechRate(speed);
-//
-//            Bundle params = new Bundle();
-        private void speakInternal(String text, float speed, int priority, String utteranceId) {
-            try {
-                if (tts == null) {
-                    Log.e(TAG, "TTS对象为null");
-                    checkAndRecoverTTS();
-                    return;
-                }
+    private void speakInternal(PendingUtterance utterance) {
+        // 增强的就绪检查
+        if (ttsUtil == null) {
+            Log.e(TAG, "TTSUtil对象为null，尝试恢复");
+            checkAndRecoverTTS();
+            return;
+        }
 
-        Bundle params = new Bundle();
-            params.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, utteranceId);
+        if (!isInitialized) {
+            Log.w(TAG, "TTS未初始化，无法播报: " + utterance.text);
+            checkAndRecoverTTS();
+            return;
+        }
 
-            currentPriority = priority;
-            isSpeaking = true;
+        try {
+            // 设置语速
+            ttsUtil.setDefaultSpeechRate(utterance.speed);
+            ttsUtil.setDefaultLocale(currentLocale);
 
-            int result = tts.speak(text, TextToSpeech.QUEUE_FLUSH, params, utteranceId);
+            currentPriority = utterance.priority;
 
-            if (result == TextToSpeech.ERROR) {
-                Log.e(TAG, "TTS播报失败");
-                isSpeaking = false;
-                currentPriority = 0;
-                checkAndRecoverTTS();
-            } else {
-                Log.d(TAG, "TTS播报中: " + text + " (优先级: " + priority + ")");
-            }
+            // 记录本次播报内容（用于重复检测）
+            lastSpokenText = utterance.text;
+            lastSpokenTime = System.currentTimeMillis();
+
+            Log.d(TAG, "调用TTSUtil.speak(): text=" + utterance.text + ", speed=" + utterance.speed + ", priority=" + utterance.priority);
+            // TTSUtil.speak(String text, String utteranceId, Locale locale, float speechRate, float pitch)
+            ttsUtil.speak(utterance.text, utterance.utteranceId, currentLocale, utterance.speed, 1.0f);
+
+            Log.d(TAG, "TTS播报请求成��: " + utterance.text + " (优先级: " + utterance.priority + ", 语速: " + utterance.speed + ")");
         } catch (Exception e) {
-            Log.e(TAG, "TTS播报异常", e);
+            Log.e(TAG, "TTS播报异常: " + e.getMessage(), e);
             isSpeaking = false;
             currentPriority = 0;
             checkAndRecoverTTS();
@@ -453,8 +410,8 @@ public class C_TextToSpeechService implements VoiceService {
         isSpeaking = false;
         currentPriority = 0;
 
-        if (tts != null && isInitialized) {
-            tts.stop();
+        if (ttsUtil != null && isInitialized) {
+            ttsUtil.stop();
             Log.d(TAG, "TTS停止播报，队列已清空");
         }
     }
@@ -464,10 +421,10 @@ public class C_TextToSpeechService implements VoiceService {
         cancelTimeoutCheck();
         utteranceList.clear();
 
-        if (tts != null) {
-            tts.stop();
-            tts.shutdown();
-            tts = null;
+        if (ttsUtil != null) {
+            ttsUtil.stop();
+            ttsUtil.release();
+            ttsUtil = null;
         }
         isInitialized = false;
         isInitializing = false;
@@ -484,19 +441,16 @@ public class C_TextToSpeechService implements VoiceService {
     @Override
     public void setLanguage(Locale locale) {
         this.currentLocale = locale;
-        if (tts != null && isInitialized) {
-            int result = tts.setLanguage(locale);
-            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                Log.w(TAG, "不支持的语言: " + locale.getDisplayLanguage());
-            }
+        if (ttsUtil != null && isInitialized) {
+            ttsUtil.setDefaultLocale(locale);
         }
     }
 
     @Override
     public void setSpeed(float speed) {
         this.currentSpeed = speed;
-        if (tts != null && isInitialized) {
-            tts.setSpeechRate(speed);
+        if (ttsUtil != null && isInitialized) {
+            ttsUtil.setDefaultSpeechRate(speed);
         }
     }
 
@@ -504,7 +458,7 @@ public class C_TextToSpeechService implements VoiceService {
      * 检查TTS是否已初始化且可用
      */
     public boolean isReady() {
-        return isInitialized && tts != null && !isInitializing;
+        return isInitialized && ttsUtil != null && !isInitializing;
     }
 
     /**
@@ -654,8 +608,8 @@ public class C_TextToSpeechService implements VoiceService {
      */
     public void speakImmediately(String text, int priority, String source) {
         // 停止当前播报
-        if (tts != null && isSpeaking) {
-            tts.stop();
+        if (ttsUtil != null && isSpeaking) {
+            ttsUtil.stop();
             isSpeaking = false;
             currentPriority = 0;
         }
@@ -669,5 +623,24 @@ public class C_TextToSpeechService implements VoiceService {
         utteranceList.add(utterance);
 
         processQueue();
+    }
+
+    // ==================== TTS状态监听器相关 ====================
+
+    /**
+     * 设置TTS播报状态监听器
+     * 用于控制语音识别服务，避免回声识别死循环
+     * @param listener ���听器，可以为null（取消监听）
+     */
+    public void setTTSSpeechListener(TTSSpeechListener listener) {
+        this.ttsSpeechListener = listener;
+        Log.d(TAG, "TTS状态监听器已" + (listener != null ? "设置" : "清除"));
+    }
+
+    /**
+     * 获取当前TTS状态监听器
+     */
+    public TTSSpeechListener getTTSSpeechListener() {
+        return ttsSpeechListener;
     }
 }
