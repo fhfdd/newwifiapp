@@ -1,5 +1,7 @@
 package com.example.indoornavblind.ui.activities;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -612,12 +614,9 @@ public class MainActivity extends AppCompatActivity {
         btnSettings.setOnClickListener(v -> enterSettingsMode());
 
         btnEmergency.setOnClickListener(v -> {
-            speak("紧急求助已发送", speechSpeed);
-            vibrate(500);
-            if (currentPosition != null) {
-                String em = "当前位置：" + currentPosition.getLabel() + "。" + navigationService.getCurrentDirectionInfo();
-                new Handler(Looper.getMainLooper()).postDelayed(() -> speak(em, speechSpeed), 1000);
-            }
+            Intent intent = new Intent(Intent.ACTION_DIAL);
+            intent.setData(Uri.parse("tel:+85212345678"));
+            startActivity(intent);
         });
 
         setupSettingsGestures();
