@@ -1,5 +1,7 @@
 package com.example.indoornavblind.ui.activities;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -19,14 +21,15 @@ import com.example.indoornavblind.database.NavigationNodeDao;
 import com.example.indoornavblind.database.entity.NavigationNodeEntity;
 import com.example.indoornavblind.model.PathEntity;
 import com.example.indoornavblind.model.Position;
+import com.example.indoornavblind.service.C_SpeechRecognizerService;
 import com.example.indoornavblind.service.LocationService;
-import com.example.indoornavblind.service.VoiceService;
 import com.example.indoornavblind.service.WiFiScannerService;
 import com.example.indoornavblind.service.VoskSpeechRecognizerService;
 import com.example.indoornavblind.service.PathStorageService;
 import com.example.indoornavblind.service.impl.CompassEnhancedNavigationService;
 import com.example.indoornavblind.service.impl.L_KnnLocationService;
 import com.example.indoornavblind.service.L_WiFiScannerServiceImpl;
+import com.example.indoornavblind.service.impl.LocalIntentEngine;
 import com.example.indoornavblind.util.NavigationDataInitializer;
 import com.example.indoornavblind.util.PathParser;
 import com.example.indoornavblind.util.PermissionUtil;
@@ -67,18 +70,27 @@ public class MainActivity extends AppCompatActivity {
     private float speechSpeed = 1.0f;
     private VoskSpeechRecognizerService.Language currentLanguage = VoskSpeechRecognizerService.Language.CHINESE;
     private int navigationPace = 5000;
+    private String lastNavigationInstruction = ""; // 新增
     private String lastSpokenText = "";
+    private String lastRecognizedText = ""; // 最后识别的Vosk内容
+
+    // TTS回声保护机制
+    private long lastTtsStartTime = 0;
+    private long lastTtsEndTime = 0;
+    private static final long TTS_ECHO_WINDOW_MS = 3000; // TTS开始后3秒内的识别结果视为回声
+    private static final long TTS_END_ECHO_WINDOW_MS = 3000; // TTS结束后3秒内的识别结果也视为回声（增加延迟）
+    private static final long VOSK_RECOVERY_DELAY = 300; // Vosk恢复延迟300ms
+
+    private LocalIntentEngine intentEngine;
 
     private Handler longPressHandler = new Handler(Looper.getMainLooper());
     private Runnable longPressRunnable;
     private boolean isLongPressTriggered = false;
-
-    private int currentFloor = 1; // 默认楼层
-
     private Handler statusUpdateHandler = new Handler(Looper.getMainLooper());
     private Runnable statusUpdateRunnable;
 
     private GestureDetector gestureDetector;
+    private VoskSpeechRecognizerService.OnRecognitionListener voskServiceListener;  // 保存原有监听器
     private static final float SPEED_STEP = 0.1f;
     private static final float SPEED_MIN = 0.5f;
     private static final float SPEED_MAX = 2.0f;
@@ -154,144 +166,106 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void processVoiceCommand(String command) {
-        if (command == null || command.trim().isEmpty()) {
-            return;
-        }
+        if (command == null || command.trim().isEmpty()) return;
 
-        String cmd = command.toLowerCase().trim();
-        Log.d(TAG, "处理语音命令: " + cmd);
+        LocalIntentEngine.IntentResult result = intentEngine.recognize(command);
+        Log.d(TAG, "意图识别: " + result);
 
-        // 楼层选择
-        if (cmd.contains("楼") && (cmd.contains("我在") || cmd.contains("设置"))) {
-            try {
-                int floor = Integer.parseInt(cmd.replaceAll("[^0-9]", ""));
-                if (floor >= 1 && floor <= 10) {
-                    currentFloor = floor;
-                    speak("已设置楼层为" + floor + "楼", speechSpeed);
-                    return;
-                }
-            } catch (Exception e) {
-                speak("请说清楚楼层，例如我在3楼", speechSpeed);
-            }
-            return;
-        }
-
-        // 1. 导航命令
-        if (cmd.contains("去") || cmd.contains("导航到") || cmd.contains("到") ||
-                cmd.contains("go to") || cmd.contains("navigate to")) {
-
-            // 提取目的地（简单逻辑）
-            String destination = cmd
-                    .replace("去", "")
-                    .replace("导航到", "")
-                    .replace("到", "")
-                    .replace("go to", "")
-                    .replace("navigate to", "")
-                    .trim();
-
-            if (!destination.isEmpty()) {
-                // 检查是否有同名地点需要确认楼层
-                List<Integer> floors = findFloorsForLocation(destination);
-                if (floors.size() > 1 && currentPosition != null) {
-                    // 同名地点存在多楼层，使用当前楼层
-                    destinationName = destination;
+        switch (result.intent) {
+            case NAVIGATE:
+                if (result.destination != null) {
+                    destinationName = result.destination;
                     hasDestination = true;
-                    speak("正在导航到" + currentPosition.getFloor() + "楼的" + destination, speechSpeed);
-                    startNavigation(destination);
-                } else if (floors.size() == 1) {
-                    destinationName = destination;
-                    hasDestination = true;
-                    speak("正在导航到" + destination, speechSpeed);
-                    startNavigation(destination);
+                    speak("正在导航到" + result.destination, speechSpeed);
+                    startNavigation(result.destination);
                 } else {
-                    speak("未找到" + destination + "，请说具体位置", speechSpeed);
+                    speak("请说出目的地", speechSpeed);
                 }
-                return;
-            }
-        }
-
-        // 1.5 手动设置位置（我在XX）- WiFi定位失败时的备用方案
-        if (cmd.contains("我在") || cmd.contains("我现在在") || cmd.contains("起点是") ||
-                cmd.contains("i am at") || cmd.contains("i'm at")) {
-
-            String location = cmd
-                    .replace("我在", "")
-                    .replace("我现在在", "")
-                    .replace("起点是", "")
-                    .replace("i am at", "")
-                    .replace("i'm at", "")
-                    .trim();
-
-            if (!location.isEmpty()) {
-                Position pos = findPositionByName(location);
-                if (pos != null) {
-                    currentPosition = pos;
-                    isLocated = true;
-                    navigationService.setCurrentPosition(pos);
-                    speak("已手动设置位置为" + pos.getLabel() + "。您可以说去哪里开始导航", speechSpeed);
-                    updateDisplay("当前位置：" + pos.getLabel());
+                break;
+            case SET_LOCATION:
+                if (result.destination != null) {
+                    Position pos = findPositionByName(result.destination);
+                    if (pos != null) {
+                        currentPosition = pos;
+                        isLocated = true;
+                        navigationService.setCurrentPosition(pos);
+                        speak("已设置位置为" + pos.getLabel(), speechSpeed);
+                    }
+                }
+                break;
+            case STOP_NAVIGATION:
+                if (navigationService.isNavigating()) {
+                    navigationService.stopNavigation();
+                    speak("导航已停止", speechSpeed);
+                }
+                break;
+            case QUERY_LOCATION:
+                speak(currentPosition != null ? "您在" + currentPosition.getLabel() : "位置未知", speechSpeed);
+                break;
+            case REPEAT:
+                if (!lastSpokenText.isEmpty()) speak(lastSpokenText, speechSpeed);
+                break;
+            case HELP:
+                speak(intentEngine.getHelpText(), speechSpeed);
+                break;
+            case LOCATE:
+                startLocation();
+                break;
+            case QUERY_NEARBY:
+                if (currentPosition != null) announceNearbyPOIs(currentPosition);
+                else speak("请先定位", speechSpeed);
+                break;
+            case QUERY_PROGRESS:
+                if (navigationService.isNavigating()) {
+                    speak("导航进行中，请继续前进", speechSpeed);
                 } else {
-                    speak("未找到位置：" + location + "。请说正确的位置名称", speechSpeed);
+                    speak("当前没有进行导航", speechSpeed);
                 }
-                return;
-            }
-        }
-
-
-        // 2. 位置查询
-        else if (cmd.contains("我在哪") || cmd.contains("位置") || cmd.contains("where am i") || cmd.contains("location")) {
-            if (currentPosition != null) {
-                speak("您当前在" + currentPosition.getLabel(), speechSpeed);
-            } else {
-                speak("当前位置未知，请先定位", speechSpeed);
-            }
-        }
-
-        // 3. 附近查询
-        else if (cmd.contains("附近") || cmd.contains("周围") || cmd.contains("nearby") || cmd.contains("what's around")) {
-            if (currentPosition != null) {
-                announceNearbyPOIs(currentPosition);
-            } else {
-                speak("请先定位", speechSpeed);
-            }
-        }
-
-        // 4. 停止导航
-        else if (cmd.contains("停止导航") || cmd.contains("取消导航") || cmd.contains("stop") || cmd.contains("cancel")) {
-            if (navigationService.isNavigating()) {
-                navigationService.stopNavigation();
-                speak("导航已停止", speechSpeed);
-            } else {
-                speak("当前没有进行中的导航", speechSpeed);
-            }
-        }
-
-// 5. 语言切换
-        else if (cmd.contains("切换英文") || cmd.contains("switch to english") || cmd.contains("english")) {
-            switchToLanguage(VoskSpeechRecognizerService.Language.ENGLISH);
-        }
-        else if (cmd.contains("切换中文") || cmd.contains("switch to chinese") || cmd.contains("chinese")) {
-            switchToLanguage(VoskSpeechRecognizerService.Language.CHINESE);
-        }
-        else if (cmd.contains("切换粤语") || cmd.contains("粤语") || cmd.contains("cantonese")) {
-            switchToLanguage(VoskSpeechRecognizerService.Language.CANTONESE);
-        }
-
-        // 6. 帮助
-        else if (cmd.contains("帮助") || cmd.contains("help")) {
-            speak("可以说：去某个地方、我在哪、附近有什么、停止导航、切换语言", speechSpeed);
-        }
-
-        // 7. 重复
-        else if (cmd.contains("重复") || cmd.contains("再说一遍") || cmd.contains("repeat")) {
-            if (!lastSpokenText.isEmpty()) {
-                speak(lastSpokenText, speechSpeed);
-            }
-        }
-
-        // 8. 未识别
-        else {
-            speak("未识别的指令: " + command, speechSpeed);
+                break;
+            case START_NAVIGATION:
+                if (hasDestination && currentPosition != null) {
+                    startNavigation(destinationName);
+                } else {
+                    speak("请先设置目的地并定位", speechSpeed);
+                }
+                break;
+            case ENTER_SETTINGS:
+                enterSettingsMode();
+                break;
+            case EXIT_SETTINGS:
+                if (isInSettingsMode) {
+                    exitSettingsMode();
+                } else {
+                    speak("当前不在设置模式", speechSpeed);
+                }
+                break;
+            case SPEED_UP:
+                adjustSpeed(SPEED_STEP);
+                break;
+            case SPEED_DOWN:
+                adjustSpeed(-SPEED_STEP);
+                break;
+            case EMERGENCY:
+                btnEmergency.performClick();
+                break;
+            case VOICE_ASSISTANT:
+                btnVoiceAssistant.performClick();
+                break;
+            case CONTINUE_NAVIGATION:
+                if (hasDestination && currentPosition != null) {
+                    startNavigation(destinationName);
+                } else {
+                    speak("请先设置目的地并定位", speechSpeed);
+                }
+                break;
+            case FLOOR_UP:
+                speak("请使用楼梯或电梯上楼", speechSpeed);
+                break;
+            case FLOOR_DOWN:
+                speak("请使用楼梯或电梯下楼", speechSpeed);
+                break;
+            default:
+                speak("未识别: " + command, speechSpeed);
         }
     }
 
@@ -304,39 +278,141 @@ public class MainActivity extends AppCompatActivity {
         // 2. 获取TTS服务（语音播报）
         ttsService = serviceFactory.getTtsService();
 
+        // 2.1 设置TTS状态监听器，用于控制Vosk监听（防止回声识别）
+        ttsService.setTTSSpeechListener(new C_TextToSpeechService.TTSSpeechListener() {
+            @Override
+            public void onSpeechStart() {
+                Log.d(TAG, "TTS开始播报，停止Vosk监听");
+                // 记录TTS开始时间，用于回声保护
+                lastTtsStartTime = System.currentTimeMillis();
+                // 在UI线程中执行：先设置TTS状态，再停止Vosk
+                runOnUiThread(() -> {
+                    if (voskService != null) {
+                        // 先设置TTS播报状态标志
+                        voskService.setTtsSpeaking(true);
+                        // 无论是否正在监听，都调用pauseForTTS确保Vosk完全停止
+                        // 因为isListening可能在Vosk返回结果后已被设为false，但服务仍在运行
+                        voskService.pauseForTTS();
+                        Log.d(TAG, "Vosk已完全停止（TTS播报中）");
+                    }
+                });
+            }
+
+            @Override
+            public void onSpeechDone() {
+                Log.d(TAG, "TTS播报完成");
+                // 记录TTS结束时间，用于回声保护
+                lastTtsEndTime = System.currentTimeMillis();
+                // 在UI线程中执行：先重置TTS状态，再延迟恢复Vosk
+                runOnUiThread(() -> {
+                    if (voskService != null) {
+                        voskService.setTtsSpeaking(false);
+                        Log.d(TAG, "TTS状态已重置，isSpeaking=" + ttsService.isSpeaking() + ", queueSize=" + ttsService.getQueueSize());
+                    }
+                    // 延迟恢复Vosk监听
+                    Log.d(TAG, "安排" + VOSK_RECOVERY_DELAY + "ms后重启Vosk");
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        Log.d(TAG, "Vosk重启定时器触发，voskService=" + (voskService != null ? "非空" : "null") +
+                            ", isInSettingsMode=" + isInSettingsMode +
+                            ", isSpeaking=" + (ttsService != null ? ttsService.isSpeaking() : "null") +
+                            ", queueSize=" + (ttsService != null ? ttsService.getQueueSize() : "null"));
+                        runOnUiThread(() -> {
+                            if (voskService != null) {
+                                voskService.resumeAfterTTS();
+                                Log.d(TAG, "Vosk监听已恢复（isInSettingsMode=" + isInSettingsMode + "）");
+                            } else {
+                                Log.d(TAG, "Vosk未恢复: voskService=null");
+                            }
+                        });
+                    }, VOSK_RECOVERY_DELAY);
+                });
+            }
+
+            @Override
+            public void onSpeechError(String errorMessage) {
+                Log.d(TAG, "TTS播报出错，恢复Vosk监听");
+                // 记录TTS结束时间，用于回声保护
+                lastTtsEndTime = System.currentTimeMillis();
+                // 在UI线程中执行：先重置TTS状态，再恢复Vosk
+                runOnUiThread(() -> {
+                    if (voskService != null) {
+                        voskService.setTtsSpeaking(false);
+                        if (!isInSettingsMode) {
+                            voskService.resumeAfterTTS();
+                            Log.d(TAG, "Vosk监听已恢复（TTS错误后）");
+                        }
+                    }
+                });
+            }
+        });
+
         // 3. 获取Vosk服务（语音识别）
         voskService = serviceFactory.getVoskService();
 
         // 4. 设置Vosk识别监听器（直接处理语音指令）
-        voskService.setRecognitionListener(new VoskSpeechRecognizerService.OnRecognitionListener() {
+        voskServiceListener = new VoskSpeechRecognizerService.OnRecognitionListener() {
 
             @Override
             public void onResult(ArrayList<String> results) {
                 if (results != null && !results.isEmpty()) {
-                    String command = results.get(0);
+                    String command = cleanRecognizedText(results.get(0));
                     Log.d(TAG, "Vosk识别结果: " + command);
+
+                    // 关键修复：检查TTS是否正在播报，避免回声识别
+                    if (ttsService != null && ttsService.isSpeaking()) {
+                        Log.d(TAG, "TTS正在播报，忽略可能是回声的识别结果");
+                        // 不处理这个结果，不重启监听（由TTS监听器控制）
+                        return;
+                    }
+
+                    // 额外保护：检查是否在TTS开始后的回声窗口期内
+                    long timeSinceTtsStart = System.currentTimeMillis() - lastTtsStartTime;
+                    if (timeSinceTtsStart < TTS_ECHO_WINDOW_MS) {
+                        Log.d(TAG, "TTS开始后" + timeSinceTtsStart + "ms内的识别，忽略可能是回声的识别结果: " + command);
+                        return;
+                    }
+
+                    // 额外保护：检查是否在TTS结束后的回声窗口期内（处理延迟到达的识别结果）
+                    long timeSinceTtsEnd = System.currentTimeMillis() - lastTtsEndTime;
+                    if (timeSinceTtsEnd < TTS_END_ECHO_WINDOW_MS) {
+                        Log.d(TAG, "TTS结束后" + timeSinceTtsEnd + "ms内的识别，忽略可能是回声的识别结果: " + command);
+                        return;
+                    }
+
                     runOnUiThread(() -> {
+                        lastRecognizedText = command;
                         updateDisplay("你说: " + command);
                         processVoiceCommand(command);
                     });
                 }
 
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    if (voskService != null && voskService.isInitialized() && !isInSettingsMode) {
-                        Log.d(TAG, "自动重启语音监听");
-                        voskService.startListening();
-                    }
-                }, 1500); // 延迟增加到1.5秒避免TTS干扰
+                // 注意：不再自动重启监听，完全由TTS监听器控制
             }
 
             @Override
             public void onError(String errorMsg) {
                 Log.e(TAG, "Vosk识别错误: " + errorMsg);
+                // 检查是否在TTS保护窗口期内
+                if (ttsService != null && ttsService.isSpeaking()) {
+                    return; // 静默忽略，不处理错误
+                }
+                long timeSinceTtsStart = System.currentTimeMillis() - lastTtsStartTime;
+                long timeSinceTtsEnd = System.currentTimeMillis() - lastTtsEndTime;
+                if (timeSinceTtsStart < TTS_ECHO_WINDOW_MS || timeSinceTtsEnd < TTS_END_ECHO_WINDOW_MS) {
+                    return; // 静默忽略，不处理错误
+                }
                 runOnUiThread(() -> {
-                    speak("识别失败，请重试", speechSpeed);
+                    // 只有TTS未播报时才播报错误，避免TTS循环
+                    if (ttsService != null && !ttsService.isSpeaking()) {
+                        speak("识别失败，请重试", speechSpeed);
+                    }
                 });
+                // 错误后也不重启监听，由TTS监听器控制
             }
-        });
+        };
+        voskService.setRecognitionListener(voskServiceListener);
+
+        intentEngine = new LocalIntentEngine(this);
 
         // 5. 初始化WiFi和定位服务（和原来一样）
         wifiScanner = new L_WiFiScannerServiceImpl();
@@ -365,8 +441,10 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
 
+            // 第310-311行
             @Override
             public void onStepAnnounced(int stepIndex, int totalSteps, String instruction, String absoluteDirection) {
+                lastNavigationInstruction = instruction; // 新增这行
                 runOnUiThread(() -> updateDisplay(String.format("[%d/%d] %s", stepIndex, totalSteps, instruction)));
             }
 
@@ -475,7 +553,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void initListeners() {
         tvTopDisplay.setOnClickListener(v -> {
-            if (!lastSpokenText.isEmpty()) { speak(lastSpokenText, speechSpeed); vibrate(50); }
+            String toSpeak = !lastNavigationInstruction.isEmpty() ? lastNavigationInstruction : lastSpokenText;
+            if (!toSpeak.isEmpty()) { speak(toSpeak, speechSpeed); vibrate(50); }
         });
 
         setupLocateNavButton();
@@ -486,20 +565,45 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
-            // 使用Vosk服务，而不是voiceAssistant
+            // 检查录音权限
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    speak("需要录音权限", speechSpeed);
+                    requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, 100);
+                    return;
+                }
+            }
+
             if (voskService != null && voskService.isInitialized()) {
                 speak("请说出您的指令", speechSpeed);
                 vibrate(100);
-
-                // 延迟开始监听，避免TTS干扰
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
                     voskService.startListening();
                     updateDisplay("正在聆听...");
                 }, 800);
+            } else if (serviceFactory != null) {
+                // 备用：使用Google语音识别
+//                C_SpeechRecognizerService googleSR = serviceFactory.createSpeechRecognizerService();
+//                googleSR.init(this);
+//                googleSR.setRecognitionListener(new C_SpeechRecognizerService.OnRecognitionListener() {
+//                    @Override
+//                    public void onResult(ArrayList<String> results) {
+//                        if (results != null && !results.isEmpty()) {
+//                            processVoiceCommand(results.get(0));
+//                        }
+//                        googleSR.destroy();
+//                    }
+//                    @Override
+//                    public void onError(String errorMsg) {
+//                        speak("识别失败：" + errorMsg, speechSpeed);
+//                        googleSR.destroy();
+//                    }
+//                });
+//                googleSR.startListening();
             } else {
+                // 文本输入fallback
                 String input = etVoiceSimulate.getText().toString().trim();
                 if (!input.isEmpty()) {
-                    // 手动输入模式
                     processVoiceCommand(input);
                     etVoiceSimulate.setText("");
                 } else {
@@ -507,16 +611,12 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-
         btnSettings.setOnClickListener(v -> enterSettingsMode());
 
         btnEmergency.setOnClickListener(v -> {
-            speak("紧急求助已发送", speechSpeed);
-            vibrate(500);
-            if (currentPosition != null) {
-                String em = "当前位置：" + currentPosition.getLabel() + "。" + navigationService.getCurrentDirectionInfo();
-                new Handler(Looper.getMainLooper()).postDelayed(() -> speak(em, speechSpeed), 1000);
-            }
+            Intent intent = new Intent(Intent.ACTION_DIAL);
+            intent.setData(Uri.parse("tel:+85212345678"));
+            startActivity(intent);
         });
 
         setupSettingsGestures();
@@ -525,31 +625,7 @@ public class MainActivity extends AppCompatActivity {
         etVoiceSimulate.setOnEditorActionListener((v, actionId, event) -> {
             String input = etVoiceSimulate.getText().toString().trim();
             if (!input.isEmpty()) {
-                if (input.startsWith("我在") || input.toLowerCase().startsWith("i am at")) {
-                    // 直接处理位置输入
-                    if (input.startsWith("我在")) {
-                        String location = input.substring(2).trim();
-                        Position pos = findPositionByName(location);
-                        if (pos != null) {
-                            currentPosition = pos;
-                            isLocated = true;
-                            navigationService.setCurrentPosition(pos);
-                            speak("已设置当前位置为" + location, speechSpeed);
-                            updateDisplay("当前位置：" + location);
-                        } else {
-                            speak("未找到位置" + location, speechSpeed);
-                        }
-                    }
-                } else {
-                    destinationName = input;
-                    hasDestination = true;
-                    updateDisplay("目的地：" + destinationName);
-                    if (isLocated) speak("目的地已设置为" + destinationName + "，点击开始导航", speechSpeed);
-                    else {
-                        speak("目的地已设置为" + destinationName + "，正在定位", speechSpeed);
-                        startLocation();
-                    }
-                }
+                processVoiceCommand(input);
                 etVoiceSimulate.setText("");
             }
             return true;
@@ -581,14 +657,16 @@ public class MainActivity extends AppCompatActivity {
         }
         vibrate(50);
 
-        // 简化逻辑：单击只进行定位，不开始导航
+        if (navigationService.isWaitingForElevator()) {
+            navigationService.confirmElevatorArrival();
+            return;
+        }
+
         if (navigationService.isNavigating()) {
-            // 如果在导航中，只更新位置，不停止导航
             speak("正在更新位置", speechSpeed);
             updateDisplay("定位更新中...");
             updateCurrentLocation();
         } else {
-            // 不在导航中，只进行定位
             startLocation();
         }
     }
@@ -698,7 +776,14 @@ public class MainActivity extends AppCompatActivity {
                     }, 2000);
                 });
             }
-            @Override public void onFailure(String e) { runOnUiThread(() -> { isLocated = false; speak("WiFi定位失败。" + e, speechSpeed); }); }
+            @Override
+            public void onFailure(String e) {
+                runOnUiThread(() -> {
+                    isLocated = false;
+                    speak("WiFi定位失败，请说我在加位置名称手动设置，例如我在门口", speechSpeed);
+                    updateDisplay("定位失败 | 说\"我在XX\"设置位置");
+                });
+            }
         });
     }
 
@@ -832,10 +917,14 @@ public class MainActivity extends AppCompatActivity {
         isSwitchingLanguage = true;
         currentLanguage = language;
 
+//        // 1. 先更新TTS（不依赖Vosk）
+//        if (ttsService != null && ttsService.isReady()) {
+//            ttsService.setLanguage(language.locale);
+//            ttsService.setSpeed(speechSpeed);
+//        }
         // 1. 先更新TTS（不依赖Vosk）
         if (ttsService != null && ttsService.isReady()) {
             ttsService.setLanguage(language.locale);
-            ttsService.setSpeed(speechSpeed);
         }
 
         // 2. Vosk单独切换，失败不影响其他
@@ -891,9 +980,26 @@ public class MainActivity extends AppCompatActivity {
 
     private void updateDisplay(String text) { if (tvTopDisplay != null) tvTopDisplay.setText(text); }
 
+    /**
+     * 清理语音识别结果，去除文字间的间隔
+     * 去除首尾空格、连续空格、空格换行等
+     */
+    private String cleanRecognizedText(String text) {
+        if (text == null) return "";
+        // 去除首尾空格
+        String cleaned = text.trim();
+        // 去除连续多个空格，替换为单个空格
+        cleaned = cleaned.replaceAll("\\s+", " ");
+        // 去除换行符等空白字符
+        cleaned = cleaned.replaceAll("[\\n\\r\\t]", " ");
+        // 去除特殊空格字符（全角空格等）
+        cleaned = cleaned.replaceAll("[　]+", "").replaceAll("[ \u00A0\u1680\u180E\u2000-\u200B\u202F\u205F\u3000\uFEFF]+", " ");
+        return cleaned.trim();
+    }
+
     private void speak(String text, float speed) {
         lastSpokenText = text;
-        updateDisplay(text);
+        // 不再覆盖tv_top_display的显示，让其保持显示Vosk识别的内容
 
         // 检查音频状态
         android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);

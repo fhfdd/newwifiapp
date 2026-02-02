@@ -50,10 +50,13 @@ public class VoskSpeechRecognizerService {
     private Map<Language, Model> loadedModels = new HashMap<>();
     private boolean voskAvailable = true;
     private SpeechService speechService;
+    private SpeechService freeSpeechService;  // 自由识别服务（用于测试按钮）
     private Context context;
     private OnRecognitionListener listener;
     private Language currentLanguage = Language.CHINESE;
     private boolean isListening = false;
+    private boolean isFreeListening = false;  // 自由识别模式标志
+    private boolean isTtsSpeaking = false;    // TTS是否正在播报
     private Handler mainHandler = new Handler(Looper.getMainLooper());
 
     public void init(Context context, String unusedPath) {
@@ -153,9 +156,10 @@ public class VoskSpeechRecognizerService {
                 speechService = null;
             }
 
+            // 使用自由识别模式（不限制词汇）
             Recognizer recognizer = new Recognizer(model, 16000.0f);
             speechService = new SpeechService(recognizer, 16000.0f);
-            Log.d(TAG, "SpeechService initialized");
+            Log.d(TAG, "SpeechService initialized (自由识别模式)");
 
         } catch (IOException e) {
             Log.e(TAG, "Recognizer init failed", e);
@@ -166,15 +170,64 @@ public class VoskSpeechRecognizerService {
         }
     }
 
-    // ... 下面保持不变 (startListening, stopListening, switchLanguage, Grammars) ...
+    // ... 语音监听器定义 ...
 
     public void startListening() {
+        // 如果speechService为null但模型已加载，尝试初始化
+        if (speechService == null) {
+            Model model = loadedModels.get(currentLanguage);
+            if (model != null) {
+                Log.d(TAG, "SpeechService为null，尝试重新初始化");
+                initRecognizer(currentLanguage);
+            } else {
+                notifyError("服务未就绪");
+                return;
+            }
+        }
+
         if (speechService != null) {
             if (isListening) return;
             speechService.startListening(recognitionListener);
             isListening = true;
         } else {
-            notifyError("服务未就绪");
+            notifyError("服务初始化失败");
+        }
+    }
+
+    /**
+     * 启动自由识别模式（不限制词汇，用于测试按钮）
+     */
+    public void startFreeListening() {
+        Model model = loadedModels.get(currentLanguage);
+        if (model == null) {
+            notifyError("模型未就绪");
+            return;
+        }
+
+        try {
+            // 创建不带语法的识别器，实现自由听写
+            Recognizer freeRecognizer = new Recognizer(model, 16000.0f);
+            freeSpeechService = new SpeechService(freeRecognizer, 16000.0f);
+
+            freeSpeechService.startListening(freeRecognitionListener);
+            isFreeListening = true;
+            Log.d(TAG, "自由识别模式已启动");
+        } catch (IOException e) {
+            Log.e(TAG, "自由识别启动失败", e);
+            notifyError("自由识别启动失败");
+        }
+    }
+
+    /**
+     * 停止自由识别模式
+     */
+    public void stopFreeListening() {
+        if (freeSpeechService != null) {
+            freeSpeechService.stop();
+            freeSpeechService.shutdown();
+            freeSpeechService = null;
+            isFreeListening = false;
+            Log.d(TAG, "自由识别模式已停止");
         }
     }
 
@@ -185,6 +238,39 @@ public class VoskSpeechRecognizerService {
         }
     }
 
+    /**
+     * 完全停止Vosk识别（用于TTS播报时）
+     * 不仅停止监听，还销毁SpeechService以清除缓冲区
+     */
+    public void pauseForTTS() {
+        Log.d(TAG, "完全停止Vosk（清除缓冲区）");
+        isListening = false;
+        if (speechService != null) {
+            speechService.stop();
+            speechService.shutdown();
+            speechService = null;
+        }
+    }
+
+    /**
+     * 在TTS播报后恢复Vosk识别
+     */
+    public void resumeAfterTTS() {
+        if (speechService == null) {
+            Model model = loadedModels.get(currentLanguage);
+            if (model != null) {
+                Log.d(TAG, "重新初始化SpeechService");
+                initRecognizer(currentLanguage);
+            }
+        }
+
+        if (speechService != null && !isListening) {
+            speechService.startListening(recognitionListener);
+            isListening = true;
+            Log.d(TAG, "Vosk已恢复监听");
+        }
+    }
+
     public void switchLanguage(Language language) {
         if (language == currentLanguage && speechService != null) return;
         currentLanguage = language;
@@ -192,18 +278,35 @@ public class VoskSpeechRecognizerService {
         initRecognizer(language);
     }
 
+    /**
+     * 设置TTS播报状态（用于控制日志输出）
+     * @param speaking true=TTS正在播报，false=TTS未播报
+     */
+    public void setTtsSpeaking(boolean speaking) {
+        this.isTtsSpeaking = speaking;
+    }
+
+    public boolean isTtsSpeaking() {
+        return isTtsSpeaking;
+    }
+
+
     private RecognitionListener recognitionListener = new RecognitionListener() {
         @Override
         public void onPartialResult(String hypothesis) {}
 
         @Override
         public void onResult(String hypothesis) {
+            Log.d(TAG, "Result1: " + hypothesis);
             isListening = false;
             try {
                 JSONObject json = new JSONObject(hypothesis);
                 String text = json.optString("text", "").trim();
                 if (!text.isEmpty()) {
-                    Log.d(TAG, "Result: " + text);
+                    // TTS播报期间不打印日志，减少噪音
+                    if (!isTtsSpeaking) {
+                        Log.d(TAG, "Result2: " + text);
+                    }
                     if (handleLanguageSwitch(text)) return;
                     notifyResult(text);
                 }
@@ -225,6 +328,51 @@ public class VoskSpeechRecognizerService {
         public void onTimeout() { isListening = false; }
     };
 
+    /**
+     * 自由识别监听器（用于测试按钮，不处理语言切换）
+     */
+    private RecognitionListener freeRecognitionListener = new RecognitionListener() {
+        @Override
+        public void onPartialResult(String hypothesis) {
+            // 可选：处理中间结果
+        }
+
+        @Override
+        public void onResult(String hypothesis) {
+            isFreeListening = false;
+            try {
+                JSONObject json = new JSONObject(hypothesis);
+                String text = json.optString("text", "").trim();
+                // TTS播报期间不打印日志，减少噪音
+                if (!isTtsSpeaking) {
+                    Log.d(TAG, "自由识别结果: " + text);
+                }
+                if (!text.isEmpty()) {
+                    notifyResult(text);
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "自由识别解析错误", e);
+            }
+        }
+
+        @Override
+        public void onFinalResult(String hypothesis) {
+            onResult(hypothesis);
+        }
+
+        @Override
+        public void onError(Exception exception) {
+            isFreeListening = false;
+            Log.e(TAG, "自由识别错误: " + exception.getMessage());
+            notifyError(exception.getMessage());
+        }
+
+        @Override
+        public void onTimeout() {
+            isFreeListening = false;
+        }
+    };
+
     private boolean handleLanguageSwitch(String text) {
         text = text.toLowerCase();
         if (text.contains("切换英文") || text.contains("switch to english")) {
@@ -234,6 +382,10 @@ public class VoskSpeechRecognizerService {
         } else if (text.contains("切换中文") || text.contains("switch to chinese")) {
             switchLanguage(Language.CHINESE);
             notifyResult("Switched to Chinese");
+            return true;
+        } else if (text.contains("切换粤语") || text.contains("switch to cantonese")) {
+            switchLanguage(Language.CANTONESE);
+            notifyResult("Switched to Cantonese");
             return true;
         }
         return false;
@@ -261,12 +413,24 @@ public class VoskSpeechRecognizerService {
     }
 
     public void setRecognitionListener(OnRecognitionListener listener) { this.listener = listener; }
-    public boolean isInitialized() { return voskAvailable && loadedModels.get(currentLanguage) != null; }
-    public boolean isListening() { return isListening; }
+    public boolean isInitialized() {
+        return voskAvailable
+                && loadedModels.get(currentLanguage) != null
+                && speechService != null;
+    }
+    public boolean isListening() { return isListening || isFreeListening; }
+    public boolean isFreeListening() { return isFreeListening; }
     public Language getCurrentLanguage() { return currentLanguage; }
     public ArrayList<Language> getLoadedLanguages() { return new ArrayList<>(loadedModels.keySet()); }
     public String getModelStatus() { return "Models: " + loadedModels.size(); }
-    public void destroy() { if (speechService != null) speechService.shutdown(); loadedModels.clear(); }
+    public void destroy() {
+        if (speechService != null) speechService.shutdown();
+        if (freeSpeechService != null) {
+            freeSpeechService.shutdown();
+            freeSpeechService = null;
+        }
+        loadedModels.clear();
+    }
 
     public interface OnRecognitionListener {
         void onResult(ArrayList<String> results);
@@ -281,35 +445,84 @@ public class VoskSpeechRecognizerService {
 
     private String getCantoneseGrammar() {
         return "[" +
-                "\"去浴室\", \"去门口\", \"去楼梯\", \"去电梯\", \"去厕所\", \"去出口\", " +
+                // ========== 导航目的地 ==========
+                "\"去浴室\", \"去门口\", \"去楼梯\", \"去电梯\", \"去厕所\", \"去洗手间\", \"去出口\", " +
+                "\"去二零二\", \"去二零三\", \"去二零四\", \"去二零五\", \"去二零八\", \"去二一零\", \"去二一二\", " +
+                "\"去三零三\", \"去三零五\", \"去三楼\", \"去二楼\", \"去一楼\", " +
+                "\"去大厅\", \"去办公室\", \"去会议室\", " +
+                // ========== 设置当前位置 ==========
+                "\"我喺浴室\", \"我喺门口\", \"我喺电梯\", \"我喺厕所\", " +
                 "\"我喺边\", \"我喺边度\", \"定位\", " +
-                "\"附近有咩\", \"停止导航\", \"取消导航\", \"重复\", \"再讲一次\", " +
+                // ========== 查询 ==========
+                "\"附近有咩\", \"附近有乜\", \"仲有几远\", " +
+                // ========== 导航控制 ==========
+                "\"停止导航\", \"取消导航\", \"继续导航\", \"重复\", \"再讲一次\", " +
+                "\"快啲\", \"慢啲\", " +
+                // ========== 功能按钮 ==========
+                "\"语音助手\", \"打开助手\", \"紧急求助\", \"紧急帮助\", \"幫我\", " +
+                "\"打开设置\", \"退出设置\", \"设置模式\", " +
+                "\"语速快\", \"语速慢\", \"切换语言\", " +
                 "\"切换英文\", \"切换中文\", \"切换粤语\", " +
-                "\"帮助\"" +
+                // ========== 测试按钮 ==========
+                "\"语音录入\", \"语音测试\", " +
+                // ========== 楼层相关 ==========
+                "\"上楼梯\", \"落楼梯\", \"搭电梯\", " +
+                // ========== 粤语特色 ==========
+                "\"帮帮手\", \"有无嘢帮手\", \"导航去边\", \"去边度\"" +
                 "]";
     }
 
     private String getChineseGrammar() {
         return "[" +
-                "\"去浴室\", \"去门口\", \"去楼梯\", \"去电梯\", \"去厕所\", \"去洗手间\", \"去出口\", \"去入口\", \"去办公室\", \"去会议室\", \"去大厅\", " +
-                "\"我在浴室\", \"我在门口\", \"我在楼梯\", \"我在电梯\", \"我在厕所\", \"我在洗手间\", \"我在出口\", \"我在入口\", " +
-                "\"我在哪\", \"我在哪里\", \"当前位置\", \"定位\", " +
-                "\"附近有什么\", \"周围有什么\", \"查询附近\", \"导航进度\", \"还有多远\", " +
-                "\"开始导航\", \"停止导航\", \"取消导航\", \"重复\", \"再说一遍\", \"加快速度\", \"减慢速度\", " +
-                "\"切换英文\", \"切换中文\", \"英文模式\", \"中文模式\", " +
-                "\"帮助\", \"打开设置\", \"紧急求助\", \"帮我\"" +
+                // ========== 导航目的地 ==========
+                "\"去浴室\", \"去门口\", \"去楼梯\", \"去电梯\", \"去厕所\", \"去洗手间\", \"去出口\", " +
+                "\"去二零二\", \"去二零三\", \"去二零四\", \"去二零五\", \"去二零八\", \"去二一零\", \"去二一二\", " +
+                "\"去三零三\", \"去三零五\", \"去三楼\", \"去二楼\", \"去一楼\", " +
+                "\"去大厅\", \"去办公室\", \"去会议室\", \"去休息室\", \"去前台\", " +
+                // ========== 设置当前位置 ==========
+                "\"我在浴室\", \"我在门口\", \"我在电梯\", \"我在厕所\", \"我在大厅\", \"我在办公室\", " +
+                "\"我在一楼\", \"我在二楼\", \"我在三楼\", \"当前位置\", \"定位\", " +
+                // ========== 查询 ==========
+                "\"我在哪\", \"我在哪里\", \"附近有什么\", \"周围有什么\", \"还有多远\", \"导航进度\", " +
+                // ========== 导航控制 ==========
+                "\"开始导航\", \"停止导航\", \"取消导航\", \"继续导航\", \"重复\", \"再说一遍\", \"快一点\", \"慢一点\", " +
+                // ========== 功能按钮 ==========
+                "\"语音助手\", \"打开助手\", \"进入助手\", \"紧急求助\", \"紧急帮助\", \"帮助\", " +
+                "\"打开设置\", \"进入设置\", \"退出设置\", \"设置模式\", " +
+                "\"语速快\", \"语速慢\", \"语速加\", \"语速减\", \"语速调整\", " +
+                "\"切换语言\", \"切换英文\", \"切换中文\", \"切换粤语\", " +
+                // ========== 测试按钮 ==========
+                "\"语音录入\", \"语音测试\", \"开始录音\", \"结束录音\", " +
+                // ========== 楼层相关 ==========
+                "\"上楼梯\", \"下楼梯\", \"乘电梯\", \"电梯在哪\", \"楼梯在哪\", " +
+                // ========== 特殊导航 ==========
+                "\"导航到门口\", \"导航到浴室\", \"导航到电梯\", \"导航到厕所\", \"导航到出口\"" +
                 "]";
     }
 
     private String getEnglishGrammar() {
         return "[" +
-                "\"go to bathroom\", \"go to entrance\", \"go to stairs\", \"go to elevator\", \"go to toilet\", \"go to exit\", \"go to office\", \"go to hall\", " +
-                "\"i am at bathroom\", \"i am at entrance\", \"i am at stairs\", " +
-                "\"where am i\", \"current location\", \"locate me\", " +
-                "\"what's nearby\", \"navigation progress\", \"how far\", " +
-                "\"start navigation\", \"stop navigation\", \"repeat\", \"speed up\", \"slow down\", " +
-                "\"switch to chinese\", \"switch to english\", " +
-                "\"help\", \"settings\", \"emergency\"" +
+                // ========== Navigation destinations ==========
+                "\"go to bathroom\", \"go to entrance\", \"go to stairs\", \"go to elevator\", \"go to toilet\", \"go to exit\", \"go to office\", \"go to hall\", \"go to meeting room\", \"go to lobby\", " +
+                "\"navigate to bathroom\", \"navigate to entrance\", \"navigate to stairs\", \"navigate to elevator\", \"navigate to toilet\", \"navigate to exit\", " +
+                // ========== Set current location ==========
+                "\"i am at bathroom\", \"i am at entrance\", \"i am at stairs\", \"i am at elevator\", \"i am at toilet\", \"i am at exit\", \"i am at lobby\", \"i am at office\", " +
+                "\"floor one\", \"floor two\", \"floor three\", \"current location\", \"where am i\", \"locate me\", " +
+                // ========== Query ==========
+                "\"what's nearby\", \"navigation progress\", \"how far\", \"where am i going\", " +
+                // ========== Navigation control ==========
+                "\"start navigation\", \"stop navigation\", \"cancel navigation\", \"continue navigation\", \"repeat\", \"speed up\", \"slow down\", " +
+                // ========== Feature buttons ==========
+                "\"voice assistant\", \"open assistant\", \"emergency help\", \"emergency\", \"help\", " +
+                "\"open settings\", \"enter settings\", \"exit settings\", \"settings mode\", " +
+                "\"faster\", \"slower\", \"increase speed\", \"decrease speed\", \"speech rate\", " +
+                "\"switch language\", \"switch to chinese\", \"switch to english\", \"switch to cantonese\", " +
+                // ========== Test button ==========
+                "\"voice test\", \"voice input\", \"start recording\", \"stop recording\", " +
+                // ========== Floor navigation ==========
+                "\"take stairs up\", \"take stairs down\", \"take elevator\", \"where is elevator\", " +
+                // ========== Others ==========
+                "\"what can i say\", \"list commands\", \"help me\"" +
                 "]";
     }
 }

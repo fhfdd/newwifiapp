@@ -49,7 +49,9 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
     private static final double WALKING_SPEED = 0.8;
     private static final int TURN_WARNING_SECONDS = 5;
     private static final long STEP_DEBOUNCE_MS = 300;
-    private static final float STEP_SENSITIVITY = 15.0f;
+    private static final float STEP_SENSITIVITY = 11.5f;
+    private static final float STEP_THRESHOLD_LOW = 9.0f;
+    private static final float STEP_THRESHOLD_HIGH = 12.0f;
 
     // 移动状态
     private boolean isUserMoving = false;
@@ -323,15 +325,19 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         compassUpdateHandler.post(compassUpdateRunnable);
     }
 
+    private Handler movementHandler = new Handler(Looper.getMainLooper());
+    private Runnable movementRunnable;
+
     private void startMovementMonitor() {
-        Handler movementHandler = new Handler(Looper.getMainLooper());
-        movementHandler.post(new Runnable() {
+        movementRunnable = new Runnable() {
             @Override
             public void run() {
+                if (!isNavigating) return;
                 checkMovementStatus();
                 movementHandler.postDelayed(this, 1000);
             }
-        });
+        };
+        movementHandler.post(movementRunnable);
     }
 
     private void stopCompassUpdate() {
@@ -355,13 +361,11 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
             return;
         }
 
-        if (magnitude > STEP_SENSITIVITY && lastMagnitude > magnitude) {
-            if (stepPeakDetected) {
-                onStepDetected(currentTime, magnitude);
-                stepPeakDetected = false;
-            } else {
-                stepPeakDetected = true;
-            }
+        if (!stepPeakDetected && magnitude > STEP_THRESHOLD_HIGH) {
+            stepPeakDetected = true;
+        } else if (stepPeakDetected && magnitude < STEP_THRESHOLD_LOW) {
+            onStepDetected(currentTime, magnitude);
+            stepPeakDetected = false;
         }
 
         lastMagnitude = magnitude;
@@ -377,9 +381,12 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         Log.d(TAG, String.format("检测到有效步伐 #%d，当前段%d步/预期%d步",
                 stepCount, stepsInCurrentSegment, expectedStepsForSegment));
 
+        showDebugToast("步伐#" + stepCount + " | 段内" + stepsInCurrentSegment + "/" + expectedStepsForSegment);
+
         if (expectedStepsForSegment > 0 &&
                 stepsInCurrentSegment >= expectedStepsForSegment * 0.8) {
             Log.d(TAG, "步数达到阈值，触发下一步");
+            navigationHandler.removeCallbacks(timerCheckRunnable);
             advanceToNextStepByTimer();
         }
     }
@@ -398,6 +405,7 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
                     isTimerPaused = false;
                     segmentPausedTime += System.currentTimeMillis() - pauseStartTime;
                     Log.d(TAG, "计时器恢复，已累计暂停" + segmentPausedTime + "ms");
+                    showDebugToast("计时器恢复 | 暂停累计" + segmentPausedTime/1000 + "秒");
                     navigationHandler.post(timerCheckRunnable);
                 }
             } else {
@@ -405,11 +413,13 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
                     isTimerPaused = true;
                     pauseStartTime = System.currentTimeMillis();
                     Log.d(TAG, "计时器暂停");
+                    showDebugToast("检测静止 | 计时器暂停");
                     navigationHandler.removeCallbacks(timerCheckRunnable);
                 }
             }
         }
     }
+
 
     // 创建定时检查Runnable
     private Runnable timerCheckRunnable = new Runnable() {
@@ -426,7 +436,7 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
 
             long elapsed = System.currentTimeMillis() - segmentTimerStartTime - segmentPausedTime;
 
-            if (stepsInCurrentSegment >= expectedStepsForSegment * 0.8) {
+            if (elapsed >= segmentExpectedDuration) {
                 advanceToNextStepByTimer();
             } else {
                 navigationHandler.postDelayed(this, 500);
@@ -469,10 +479,9 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         startMovementMonitor();
     }
 
+    // 替换 setupSegmentTimer 方法
     private void setupSegmentTimer(PathEntity step) {
-        double segmentDistance = step.getDistanceMeters() > 0
-                ? step.getDistanceMeters()
-                : parseDistance(step.getDistance_cn());
+        double segmentDistance = step.getDistanceMeters();
 
         segmentExpectedDuration = (long) ((segmentDistance / WALKING_SPEED) * 1000);
 
@@ -486,6 +495,20 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
 
         Log.d(TAG, String.format("段计时器：距离%.1fm，预期%d步，约%d秒",
                 segmentDistance, expectedStepsForSegment, segmentExpectedDuration/1000));
+
+        // 显示调试Toast
+        showDebugToast(String.format("距离%.1fm | 步幅%.2fm | %d步 | %d秒",
+                segmentDistance, stepLength, expectedStepsForSegment, segmentExpectedDuration/1000));
+
+        navigationHandler.post(timerCheckRunnable);
+    }
+
+    private void showDebugToast(String msg) {
+        if (appContext != null) {
+            new Handler(Looper.getMainLooper()).post(() ->
+                    android.widget.Toast.makeText(appContext, msg, android.widget.Toast.LENGTH_SHORT).show()
+            );
+        }
     }
 
     public void setPositionUpdateCallback(PositionUpdateCallback callback) {
@@ -563,7 +586,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         Log.d(TAG, "指南针：" + (isCompassEnabled ? "启用" : "禁用"));
 
         startSensors();
-        startMovementMonitor();
 
         String overview = buildDetailedPathOverview();
         voiceService.speak(overview, baseSpeed);
@@ -657,6 +679,27 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         if (eventCallback != null) {
             eventCallback.onStepAnnounced(currentStepIndex, fullPath.size(), message, absoluteDirection);
         }
+
+        if (step.getDirection_cn() != null && step.getDirection_cn().startsWith("乘电梯")) {
+            isWaitingForElevator = true;
+            voiceService.speak("请乘坐电梯，到达后点击屏幕继续导航", baseSpeed);
+            navigationHandler.removeCallbacks(timerCheckRunnable);
+        }
+    }
+
+    private boolean isWaitingForElevator = false;
+    public void confirmElevatorArrival() {
+        if (isWaitingForElevator) {
+            isWaitingForElevator = false;
+            isUserMoving = true; // 强制设置移动状态，绕过检测
+            stepsInCurrentSegment = expectedStepsForSegment; // 强制满足步数条件
+            voiceService.speak("已确认，继续导航", baseSpeed);
+            advanceToNextStepByTimer();
+        }
+    }
+
+    public boolean isWaitingForElevator() {
+        return isWaitingForElevator;
     }
 
     private void startLocationTracking() {
@@ -694,6 +737,20 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
             eventCallback.onLocationUpdated(newPos);
         }
 
+        // 用WiFi定位校正导航步骤
+        if (isNavigating && fullPath != null && !fullPath.isEmpty()) {
+            for (int i = currentStepIndex; i < fullPath.size(); i++) {
+                PathEntity step = fullPath.get(i);
+                if (step.getEndLabel_cn().equals(newPos.getLabel())) {
+                    Log.d(TAG, "WiFi校正：跳到步骤" + (i + 1));
+                    currentStepIndex = i;
+                    navigationHandler.removeCallbacks(timerCheckRunnable);
+                    advanceToNextStepByTimer();
+                    break;
+                }
+            }
+        }
+
         Log.d(TAG, "位置更新: " + newPos.getLabel());
     }
 
@@ -717,6 +774,10 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
 
         if (navigationHandler != null) {
             navigationHandler.removeCallbacks(timerCheckRunnable);
+        }
+
+        if (movementHandler != null && movementRunnable != null) {
+            movementHandler.removeCallbacks(movementRunnable);
         }
 
         if (locationUpdateHandler != null && locationUpdateRunnable != null) {
