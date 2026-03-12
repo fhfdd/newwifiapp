@@ -204,18 +204,18 @@ public class PathParser {
     private static List<PathEntity> reconstructPath(Map<String, String> previous, String start, String end) {
         List<PathEntity> path = new ArrayList<>();
         String current = end;
-        
+
         while (!current.equals(start)) {
             String prev = previous.get(current);
             if (prev == null) break;
-            
+
             PathEntity edge = findEdge(prev, current);
             if (edge != null) {
                 path.add(0, edge);
             }
             current = prev;
         }
-        
+
         return path;
     }
 

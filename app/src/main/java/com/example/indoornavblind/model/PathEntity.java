@@ -30,7 +30,7 @@ public class PathEntity {
 
     // Getter & Setter（全部补充）
 
-//    public double getDistanceMeters() { return distanceMeters; }
+    //    public double getDistanceMeters() { return distanceMeters; }
     public void setDistanceMeters(double distanceMeters) { this.distanceMeters = distanceMeters; }
     public String getStartLabel_cn() { return startLabel_cn; }
     public void setStartLabel_cn(String startLabel_cn) { this.startLabel_cn = startLabel_cn; }
