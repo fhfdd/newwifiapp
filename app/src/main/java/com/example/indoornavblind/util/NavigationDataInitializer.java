@@ -11,29 +11,29 @@ import java.util.UUID;
  * 用于插入示例路径数据到数据库
  */
 public class NavigationDataInitializer {
-    
+
     /**
      * 初始化示例导航数据
-     * 
+     *
      * 示例：从"教室A"到"图书馆"的路径
      */
     public static void initializeSampleData(NavigationNodeDao dao) {
         // 清空现有数据（可选）
         // dao.deleteAll();
-        
+
         // 路径1: 教室A → 图书馆
         insertPath_ClassroomA_To_Library(dao);
-        
+
         // 路径2: 图书馆 → 食堂
         insertPath_Library_To_Canteen(dao);
-        
+
         // 路径3: 教室A → 食堂
         insertPath_ClassroomA_To_Canteen(dao);
     }
-    
+
     /**
      * 插入路径：教室A → 图书馆
-     * 
+     *
      * 路径说明：
      * 1. 从教室A出发，向东走10步
      * 2. 到达走廊，左转向北走15步
@@ -43,7 +43,7 @@ public class NavigationDataInitializer {
     private static void insertPath_ClassroomA_To_Library(NavigationNodeDao dao) {
         String pathId = "path_" + UUID.randomUUID().toString().substring(0, 8);
         List<NavigationNodeEntity> nodes = new ArrayList<>();
-        
+
         // 节点0: 起点
         NavigationNodeEntity node0 = new NavigationNodeEntity();
         node0.setPathId(pathId);
@@ -65,7 +65,7 @@ public class NavigationDataInitializer {
         node0.setPixelX(100);
         node0.setPixelY(100);
         nodes.add(node0);
-        
+
         // 节点1: 走廊
         NavigationNodeEntity node1 = new NavigationNodeEntity();
         node1.setPathId(pathId);
@@ -87,7 +87,7 @@ public class NavigationDataInitializer {
         node1.setPixelX(106.5);
         node1.setPixelY(100);
         nodes.add(node1);
-        
+
         // 节点2: 楼梯口
         NavigationNodeEntity node2 = new NavigationNodeEntity();
         node2.setPathId(pathId);
@@ -109,7 +109,7 @@ public class NavigationDataInitializer {
         node2.setPixelX(106.5);
         node2.setPixelY(109.75);
         nodes.add(node2);
-        
+
         // 节点3: 图书馆（目的地）
         NavigationNodeEntity node3 = new NavigationNodeEntity();
         node3.setPathId(pathId);
@@ -131,18 +131,18 @@ public class NavigationDataInitializer {
         node3.setPixelX(111.7);
         node3.setPixelY(109.75);
         nodes.add(node3);
-        
+
         // 批量插入
         dao.insertAll(nodes);
     }
-    
+
     /**
      * 插入路径：图书馆 → 食堂
      */
     private static void insertPath_Library_To_Canteen(NavigationNodeDao dao) {
         String pathId = "path_" + UUID.randomUUID().toString().substring(0, 8);
         List<NavigationNodeEntity> nodes = new ArrayList<>();
-        
+
         // 节点0: 起点（图书馆）
         NavigationNodeEntity node0 = new NavigationNodeEntity();
         node0.setPathId(pathId);
@@ -164,7 +164,7 @@ public class NavigationDataInitializer {
         node0.setPixelX(111.7);
         node0.setPixelY(109.75);
         nodes.add(node0);
-        
+
         // 节点1: 大厅
         NavigationNodeEntity node1 = new NavigationNodeEntity();
         node1.setPathId(pathId);
@@ -186,7 +186,7 @@ public class NavigationDataInitializer {
         node1.setPixelX(98.7);
         node1.setPixelY(109.75);
         nodes.add(node1);
-        
+
         // 节点2: 食堂（目的地）
         NavigationNodeEntity node2 = new NavigationNodeEntity();
         node2.setPathId(pathId);
@@ -208,17 +208,17 @@ public class NavigationDataInitializer {
         node2.setPixelX(98.7);
         node2.setPixelY(93.5);
         nodes.add(node2);
-        
+
         dao.insertAll(nodes);
     }
-    
+
     /**
      * 插入路径：教室A → 食堂
      */
     private static void insertPath_ClassroomA_To_Canteen(NavigationNodeDao dao) {
         String pathId = "path_" + UUID.randomUUID().toString().substring(0, 8);
         List<NavigationNodeEntity> nodes = new ArrayList<>();
-        
+
         // 节点0: 起点
         NavigationNodeEntity node0 = new NavigationNodeEntity();
         node0.setPathId(pathId);
@@ -240,7 +240,7 @@ public class NavigationDataInitializer {
         node0.setPixelX(100);
         node0.setPixelY(100);
         nodes.add(node0);
-        
+
         // 节点1: 走廊交叉口
         NavigationNodeEntity node1 = new NavigationNodeEntity();
         node1.setPathId(pathId);
@@ -262,7 +262,7 @@ public class NavigationDataInitializer {
         node1.setPixelX(100);
         node1.setPixelY(92.2);
         nodes.add(node1);
-        
+
         // 节点2: 食堂（目的地）
         NavigationNodeEntity node2 = new NavigationNodeEntity();
         node2.setPathId(pathId);
@@ -284,28 +284,28 @@ public class NavigationDataInitializer {
         node2.setPixelX(88.3);
         node2.setPixelY(92.2);
         nodes.add(node2);
-        
+
         dao.insertAll(nodes);
     }
-    
+
     /**
      * 创建自定义路径
-     * 
+     *
      * @param startLabel 起点标签
      * @param endLabel 终点标签
      * @param instructions 指令列表（每个元素包含：步数、方向、指令文本）
      */
-    public static void createCustomPath(NavigationNodeDao dao, 
-                                       String startLabel, 
-                                       String endLabel,
-                                       List<PathInstruction> instructions) {
+    public static void createCustomPath(NavigationNodeDao dao,
+                                        String startLabel,
+                                        String endLabel,
+                                        List<PathInstruction> instructions) {
         String pathId = "path_" + UUID.randomUUID().toString().substring(0, 8);
         List<NavigationNodeEntity> nodes = new ArrayList<>();
-        
+
         int cumulativeSteps = 0;
         for (int i = 0; i < instructions.size(); i++) {
             PathInstruction instruction = instructions.get(i);
-            
+
             NavigationNodeEntity node = new NavigationNodeEntity();
             node.setPathId(pathId);
             node.setNodeIndex(i);
@@ -323,14 +323,14 @@ public class NavigationDataInitializer {
             node.setInstruction_yue(instruction.instruction_yue);
             node.setDestination(i == instructions.size() - 1);
             node.setFloor(instruction.floor);
-            
+
             nodes.add(node);
             cumulativeSteps += instruction.steps;
         }
-        
+
         dao.insertAll(nodes);
     }
-    
+
     /**
      * 获取方向描述（中文）
      */
@@ -344,7 +344,7 @@ public class NavigationDataInitializer {
         else if (direction >= 247.5 && direction < 292.5) return "西";
         else return "西北";
     }
-    
+
     /**
      * 获取方向描述（英文）
      */
@@ -358,7 +358,7 @@ public class NavigationDataInitializer {
         else if (direction >= 247.5 && direction < 292.5) return "West";
         else return "Northwest";
     }
-    
+
     /**
      * 路径指令类
      */
@@ -369,10 +369,10 @@ public class NavigationDataInitializer {
         public String instruction_en;  // 英文指令
         public String instruction_yue; // 粤语指令
         public int floor;           // 楼层
-        
-        public PathInstruction(int steps, float direction, 
-                             String instruction_cn, String instruction_en, 
-                             String instruction_yue, int floor) {
+
+        public PathInstruction(int steps, float direction,
+                               String instruction_cn, String instruction_en,
+                               String instruction_yue, int floor) {
             this.steps = steps;
             this.direction = direction;
             this.instruction_cn = instruction_cn;
