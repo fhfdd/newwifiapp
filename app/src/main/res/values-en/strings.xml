@@ -16,7 +16,6 @@
     <string name="emergency_desc">Emergency Help</string>
 
     <!-- Settings Mode -->
-    <string name="settings_mode">Settings Mode</string>
     <string name="speed_hint">Swipe up to speed up | Swipe down to slow down (Current: %.1fx)</string>
     <string name="language_hint">Tap panel to switch language (Current: %s)</string>
     <string name="exit_hint">Double tap anywhere to exit settings mode</string>
@@ -25,6 +24,17 @@
     <string name="speed_adjusted">Voice speed adjusted to: %.1fx</string>
     <string name="language_switched">Language switched to: %s</string>
     <string name="settings_mode_hint">Currently in settings mode. Double tap to exit first.</string>
+
+    <!-- Settings screen -->
+    <string name="settings_mode">Settings</string>
+    <string name="speech_rate">Speech rate</string>
+    <string name="language">Language</string>
+    <string name="pace_format">Interval: %ds</string>
+    <string name="distance_unit">Distance unit</string>
+    <string name="unit_steps">steps</string>
+    <string name="unit_meters">meters</string>
+    <string name="settings_closed">Settings closed</string>
+    <string name="settings_saved">Settings saved</string>
 
     <!-- Function Hints -->
     <string name="tap_to_replay">Tap to replay voice</string>
@@ -37,16 +47,15 @@
     <string name="locating">Locating...</string>
     <string name="navigating">Navigating...</string>
     <string name="distance_unit_format">Distance unit: %s</string>
-    <string name="unit_steps">steps</string>
-    <string name="unit_meters">meters</string>
+
     <string name="unit_steps_eng">steps</string>
     <string name="unit_meters_eng">meters</string>
     <string name="tts_distance_unit">Distance unit:</string>
     <string name="tts_distance_unit_eng">Distance unit:</string>
-    <string name="speech_rate">Speech Rate / Speed</string>
+
     <string name="speech_rate_format">Speech rate: %.1f×</string>
     <string name="times">× (times)</string>
-    <string name="language">Language</string>
+
     <string name="language_format">Language: %s</string>
-    <string name="pace_format">Announcement interval: %d seconds</string>
+
 </resources>

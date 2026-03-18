@@ -2,7 +2,7 @@
 <resources>
     <!-- 基础信息 -->
     <string name="app_name">盲人室内导航</string>
-    <string name="welcome_hint">欢迎！点击"设置"进入设置模式</string>
+    <string name="welcome_hint">欢迎！点击“设置”进入设置模式</string>
 
     <!-- 输入框/按钮相关 -->
     <string name="voice_command_hint">输入语音指令（例如：定位、导航到厕所）</string>
@@ -21,7 +21,7 @@
     <string name="language_hint">点击面板切换语言（当前：%s）</string>
     <string name="exit_hint">双击屏幕任何位置退出设置模式</string>
     <string name="enter_settings">已进入设置模式</string>
-    <string name="exit_settings">已退出设置模式</string>
+
     <string name="speed_adjusted">语速已调整为：%.1f倍</string>
     <string name="language_switched">语言已切换为：%s</string>
     <string name="settings_mode_hint">当前处于设置模式，请先双击退出</string>
@@ -30,7 +30,7 @@
     <string name="tap_to_replay">点击重播语音</string>
     <string name="emergency_assistance">紧急求助已请求！请保持当前位置</string>
     <string name="nearby_locations">附近位置：桌子（5米）、厕所（10米）</string>
-    <string name="command_not_recognized">无法识别指令，请尝试"定位""导航到厕所"等指令</string>
+    <string name="command_not_recognized">无法识别指令，请尝试“定位”或“导航到厕所”等指令</string>
 
     <!-- 旧的保留 -->
     <string name="welcome">欢迎使用盲人室内导航系统</string>
@@ -39,7 +39,7 @@
     <string name="locating">正在定位...</string>
     <string name="navigating">导航中...</string>
 
-
+    <!-- 动态显示格式 -->
     <string name="distance_unit_format">距离单位：%s</string>
     <string name="unit_steps">步数</string>
     <string name="unit_meters">米</string>
@@ -49,11 +49,17 @@
     <string name="tts_distance_unit">距离单位：</string>
     <string name="tts_distance_unit_eng">Distance unit: </string>
 
-
+    <!-- Settings screen - 核心显示 -->
     <string name="speech_rate">语速</string>
+    <string name="language">语言</string>
+    <string name="pace_format">播报间隔：%d秒</string>
+    <string name="distance_unit">距离单位</string>
     <string name="speech_rate_format">语速：%.1f倍</string>
     <string name="times">倍</string>
-    <string name="language">语言</string>
     <string name="language_format">语言：%s</string>
-    <string name="pace_format">播报间隔：%d秒</string>
+
+    <!-- 关闭/保存提示 -->
+    <string name="settings_closed">设置已关闭</string>
+    <string name="settings_saved">设置已保存</string>
+    <string name="exit_settings">退出设置</string>
 </resources>
