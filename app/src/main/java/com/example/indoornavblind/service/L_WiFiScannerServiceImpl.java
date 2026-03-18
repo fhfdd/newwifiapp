@@ -10,110 +10,123 @@ import android.util.Log;
 
 import com.example.indoornavblind.model.WiFiData;
 import com.example.indoornavblind.util.PermissionUtil;
+
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * WiFi 扫描实现：支持权限/状态检查、系统节流时使用缓存、结果过滤与统一日志。
+ */
 public class L_WiFiScannerServiceImpl implements WiFiScannerService {
+    private static final String TAG = "WiFiScanner";
+
+    private static final int WAIT_SCAN_MS = 3000;       // startScan 成功后等待结果最长时间
+    private static final int WAIT_CACHE_MS = 600;      // startScan 失败时等待缓存的最长时间
+    private static final int POLL_INTERVAL_MS = 100;    // 轮询间隔
+    private static final int RSSI_THRESHOLD = -90;      // 信号强度阈值（≥此值才纳入，弱信号也可参与指纹匹配）
+    private static final int WIFI_START_RETRY_SEC = 5;  // WiFi 开启后等待就绪秒数
+
     private WifiManager wifiManager;
     private Context context;
 
     @Override
     public void init(Context context) {
         this.context = context;
-        wifiManager = (WifiManager) context.getSystemService(Context.WIFI_SERVICE);
+        if (context != null) {
+            wifiManager = (WifiManager) context.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        }
     }
 
-    // 在WiFiScannerServiceImpl的scanWiFi()方法中添加权限详细日志
     @Override
     public List<WiFiData> scanWiFi() {
         List<WiFiData> results = new ArrayList<>();
+        if (context == null || wifiManager == null) {
+            Log.e(TAG, "未初始化或 WifiManager 不可用");
+            return results;
+        }
 
-        // 1. 详细权限检查日志
-        Log.d("WiFiScanner", "检查权限：hasPermission=" + hasPermission());
         if (!hasPermission()) {
-            Log.e("WiFiScanner", "权限不足！需要：ACCESS_FINE_LOCATION、ACCESS_WIFI_STATE、CHANGE_WIFI_STATE");
+            Log.e(TAG, "权限不足：需 ACCESS_FINE_LOCATION（Android13+ 或 NEARBY_WIFI_DEVICES/定位）");
             return results;
         }
-
-        // 2. 检查位置服务是否开启（安卓系统强制要求）
         if (!isLocationEnabled()) {
-            Log.e("WiFiScanner", "位置服务未开启，无法扫描WiFi");
+            Log.e(TAG, "位置服务未开启，请在系统设置中开启「位置信息」");
             return results;
         }
 
-        // 3. 检查并尝试开启WiFi
-        if (!wifiManager.isWifiEnabled()) {
-            Log.e("WiFiScanner", "WiFi未开启，尝试开启...");
-            // 仅安卓Q以下支持自动开启WiFi
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                boolean enabled = wifiManager.setWifiEnabled(true);
-                Log.d("WiFiScanner", "WiFi开启结果：" + (enabled ? "成功" : "失败"));
-                // 等待WiFi启动（最多5秒）
-                int waitCount = 0;
-                while (!wifiManager.isWifiEnabled() && waitCount < 5) {
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e) {
-                        break;
-                    }
-                    waitCount++;
-                }
-            }
-            // 再次检查WiFi状态
-            if (!wifiManager.isWifiEnabled()) {
-                Log.e("WiFiScanner", "WiFi仍未开启，无法扫描");
-                return results;
-            }
+        if (!ensureWifiEnabled()) {
+            return results;
         }
 
         try {
-            // 4. 启动WiFi扫描
             boolean scanStarted = wifiManager.startScan();
-            Log.d("WiFiScanner", "扫描启动结果：" + (scanStarted ? "成功" : "失败"));
-            if (!scanStarted) {
-                Log.e("WiFiScanner", "扫描启动失败（可能被系统限制）");
+            Log.d(TAG, "startScan=" + scanStarted + "（false 多为系统节流，将尝试缓存）");
+
+            List<ScanResult> raw = waitForScanResults(scanStarted);
+            if (raw == null || raw.isEmpty()) {
+                Log.e(TAG, "无扫描结果与缓存。请确认：位置已开、WiFi 已开；若刚打开应用可稍后再试");
                 return results;
             }
 
-            // 5. 循环等待扫描结果（最多3秒，每100ms检查一次）
-            List<ScanResult> scans = null;
-            int waitMs = 0;
-            while (waitMs < 3000) {
-                scans = wifiManager.getScanResults();
-                if (scans != null && !scans.isEmpty()) {
-                    break; // 拿到结果立即退出等待
-                }
-                try {
-                    Thread.sleep(100);
-                } catch (InterruptedException e) {
-                    break;
-                }
-                waitMs += 100;
-            }
-
-            // 6. 处理扫描结果
-            if (scans == null || scans.isEmpty()) {
-                Log.e("WiFiScanner", "扫描超时，未获取到有效结果");
-                return results;
-            }
-
-            Log.d("WiFiScanner", "扫描到的WiFi数量：" + scans.size());
-            for (ScanResult scan : scans) {
-                if (scan.BSSID == null || scan.BSSID.isEmpty() || scan.level < -80) {
-                    Log.w("WiFiScanner", "过滤无效WiFi（BSSID为空）");
-                    continue;
-                }
-                WiFiData data = new WiFiData();
-                data.setBssid(scan.BSSID);
-                data.setRssi(scan.level);
-                data.setSsid(scan.SSID);
-                results.add(data);
-                Log.d("WiFiScanner", "有效WiFi：BSSID=" + scan.BSSID + ", RSSI=" + scan.level);
-            }
+            results = filterAndConvert(raw);
+            Log.d(TAG, "有效WiFi数：" + results.size() + (scanStarted ? "" : "（来自缓存）"));
         } catch (SecurityException e) {
-            Log.e("WiFiScanner", "权限异常：" + e.getMessage(), e);
+            Log.e(TAG, "权限异常：" + e.getMessage(), e);
         }
         return results;
+    }
+
+    /** 等待扫描结果；startScan 失败时短等并依赖 getScanResults 缓存 */
+    private List<ScanResult> waitForScanResults(boolean scanStarted) {
+        int maxWait = scanStarted ? WAIT_SCAN_MS : WAIT_CACHE_MS;
+        int elapsed = 0;
+        while (elapsed < maxWait) {
+            List<ScanResult> list = wifiManager.getScanResults();
+            if (list != null && !list.isEmpty()) {
+                if (!scanStarted && elapsed > 0) {
+                    Log.d(TAG, "使用缓存结果，共 " + list.size() + " 条");
+                }
+                return list;
+            }
+            try {
+                Thread.sleep(POLL_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            elapsed += POLL_INTERVAL_MS;
+        }
+        return wifiManager.getScanResults();
+    }
+
+    /** 过滤无效项并转为 WiFiData（BSSID 为空或信号低于阈值则丢弃） */
+    private List<WiFiData> filterAndConvert(List<ScanResult> raw) {
+        List<WiFiData> list = new ArrayList<>();
+        for (ScanResult r : raw) {
+            if (r.BSSID == null || r.BSSID.isEmpty() || r.level < RSSI_THRESHOLD) continue;
+            WiFiData d = new WiFiData();
+            d.setBssid(r.BSSID);
+            d.setRssi(r.level);
+            d.setSsid(r.SSID);
+            list.add(d);
+        }
+        return list;
+    }
+
+    private boolean ensureWifiEnabled() {
+        if (wifiManager.isWifiEnabled()) return true;
+        Log.w(TAG, "WiFi 未开启，尝试开启…");
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            wifiManager.setWifiEnabled(true);
+            for (int i = 0; i < WIFI_START_RETRY_SEC && !wifiManager.isWifiEnabled(); i++) {
+                try { Thread.sleep(1000); } catch (InterruptedException e) { break; }
+            }
+        }
+        if (!wifiManager.isWifiEnabled()) {
+            Log.e(TAG, "WiFi 无法开启，无法扫描");
+            return false;
+        }
+        return true;
     }
 
     public interface WifiStatusListener {
@@ -124,7 +137,6 @@ public class L_WiFiScannerServiceImpl implements WiFiScannerService {
         this.wifiStatusListener = listener;
     }
 
-    // 在WiFiScannerServiceImpl的scanWiFi()方法中，权限检查后添加
     private boolean isLocationEnabled() {
         LocationManager lm = (LocationManager) context.getSystemService(Context.LOCATION_SERVICE);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
@@ -142,7 +154,7 @@ public class L_WiFiScannerServiceImpl implements WiFiScannerService {
 
     @Override
     public boolean hasPermission() {
-        // 调用修复后的checkPermissions（传入Context参数）
-        return PermissionUtil.hasAllPermissions(context);
+        // 使用专门的WiFi扫描权限检查，支持Android 13+的新权限
+        return PermissionUtil.hasWiFiScanPermission(context);
     }
 }

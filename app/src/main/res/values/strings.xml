@@ -12,7 +12,7 @@
     <string name="voice_assistant_desc">激活语音输入</string>
     <string name="settings">设置</string>
     <string name="settings_desc">进入设置模式</string>
-    <string name="help">求助</string>
+    <string name="help">求助 Tel</string>
     <string name="emergency_desc">紧急求助</string>
 
     <!-- 设置模式相关 -->

@@ -38,11 +38,17 @@ public class LocalIntentEngine {
         QUERY_PROGRESS,     // 查询导航进度
         START_NAVIGATION,   // 开始导航
         STOP_NAVIGATION,    // 停止导航
+        CONTINUE_NAVIGATION,// 继续导航
         REPEAT,             // 重复上一条
         HELP,               // 帮助
-        SETTINGS,           // 设置
+        ENTER_SETTINGS,     // 进入设置
+        EXIT_SETTINGS,      // 退出设置
         SPEED_UP,           // 加快语速
         SPEED_DOWN,         // 减慢语速
+        VOICE_ASSISTANT,    // 打开语音助手
+        VOICE_TEST,         // 语音测试/录入
+        FLOOR_UP,           // 上楼梯
+        FLOOR_DOWN,         // 下楼梯
         EMERGENCY,          // 紧急求助
         UNKNOWN             // 未知意图
     }
@@ -124,23 +130,61 @@ public class LocalIntentEngine {
             "帮助", "怎么用", "使用说明", "能做什么", "help"
     };
 
-    // 设置关键词
-    private static final String[] SETTINGS_KEYWORDS = {
-            "设置", "调整", "settings"
+    // 进入设置关键词
+    private static final String[] ENTER_SETTINGS_KEYWORDS = {
+            "设置", "settings", "open settings", "enter settings", "打开设置", "进入设置",
+            "settings mode", "设置模式", "调整"
+    };
+
+    // 退出设置关键词（优先级更高，需要单独检查）
+    private static final String[] EXIT_SETTINGS_KEYWORDS = {
+            "退出设置", "exit settings", "关闭设置", "quit settings", "leave settings"
     };
 
     // 语速调整关键词
     private static final String[] SPEED_UP_KEYWORDS = {
-            "快一点", "加快", "语速快", "说快点", "faster"
+            "快一点", "加快", "语速快", "说快点", "faster", "speech faster",
+            "语速加", "语速增加", "快啲", "speech rate up", "速度加快"
     };
 
     private static final String[] SPEED_DOWN_KEYWORDS = {
-            "慢一点", "减慢", "语速慢", "说慢点", "slower"
+            "慢一点", "减慢", "语速慢", "说慢点", "slower", "speech slower",
+            "语速减", "语速减少", "慢啲", "speech rate down", "速度减慢"
     };
 
     // 紧急关键词
     private static final String[] EMERGENCY_KEYWORDS = {
-            "救命", "帮帮我", "紧急", "求助", "emergency", "help me"
+            "救命", "帮帮我", "紧急", "求助", "emergency", "help me", "help!",
+            "紧急求助", "紧急帮助", "emergency help", "帮帮我", "帮下手", "幫我"
+    };
+
+    // 语音助手关键词
+    private static final String[] VOICE_ASSISTANT_KEYWORDS = {
+            "语音助手", "语音助理", "voice assistant", "open assistant",
+            "打开助手", "进入助手", "启动助手", "voice input", "开始录音",
+            "我想提问", "有问题要问"
+    };
+
+    // 语音测试关键词
+    private static final String[] VOICE_TEST_KEYWORDS = {
+            "语音录入", "语音测试", "voice test", "voice input",
+            "开始录音", "开始识别", "识别测试", "录音测试"
+    };
+
+    // 继续导航关键词
+    private static final String[] CONTINUE_NAV_KEYWORDS = {
+            "继续导航", "继续", "continue navigation", "continue", "前进"
+    };
+
+    // 楼层导航关键词
+    private static final String[] FLOOR_UP_KEYWORDS = {
+            "上楼梯", "上去", "上楼", "上去楼梯", "up stairs", "go up",
+            "搭电梯上去", "乘电梯上去", "电梯上楼"
+    };
+
+    private static final String[] FLOOR_DOWN_KEYWORDS = {
+            "下楼梯", "下去", "下楼", "下去楼梯", "down stairs", "go down",
+            "搭电梯下去", "乘电梯下去", "电梯下楼"
     };
 
     // 所有可用目的地列表（从路径数据中提取）
@@ -245,8 +289,14 @@ public class LocalIntentEngine {
             return new IntentResult(Intent.HELP, null, 0.9f, text);
         }
 
-        if (matchKeywords(normalizedText, SETTINGS_KEYWORDS)) {
-            return new IntentResult(Intent.SETTINGS, null, 0.9f, text);
+        // 优先检查退出设置（因为"退出设置"也包含"设置"关键词）
+        if (matchKeywords(normalizedText, EXIT_SETTINGS_KEYWORDS)) {
+            return new IntentResult(Intent.EXIT_SETTINGS, null, 0.95f, text);
+        }
+
+        // 再检查进入设置
+        if (matchKeywords(normalizedText, ENTER_SETTINGS_KEYWORDS)) {
+            return new IntentResult(Intent.ENTER_SETTINGS, null, 0.9f, text);
         }
 
         if (matchKeywords(normalizedText, SPEED_UP_KEYWORDS)) {
@@ -255,6 +305,26 @@ public class LocalIntentEngine {
 
         if (matchKeywords(normalizedText, SPEED_DOWN_KEYWORDS)) {
             return new IntentResult(Intent.SPEED_DOWN, null, 0.9f, text);
+        }
+
+        if (matchKeywords(normalizedText, VOICE_ASSISTANT_KEYWORDS)) {
+            return new IntentResult(Intent.VOICE_ASSISTANT, null, 0.9f, text);
+        }
+
+        if (matchKeywords(normalizedText, VOICE_TEST_KEYWORDS)) {
+            return new IntentResult(Intent.VOICE_TEST, null, 0.9f, text);
+        }
+
+        if (matchKeywords(normalizedText, CONTINUE_NAV_KEYWORDS)) {
+            return new IntentResult(Intent.CONTINUE_NAVIGATION, null, 0.9f, text);
+        }
+
+        if (matchKeywords(normalizedText, FLOOR_UP_KEYWORDS)) {
+            return new IntentResult(Intent.FLOOR_UP, null, 0.9f, text);
+        }
+
+        if (matchKeywords(normalizedText, FLOOR_DOWN_KEYWORDS)) {
+            return new IntentResult(Intent.FLOOR_DOWN, null, 0.9f, text);
         }
 
         // 4. 如果用户直接说目的地名称（没有导航关键词）
@@ -453,10 +523,13 @@ public class LocalIntentEngine {
 
     /**
      * 检查文本是否匹配关键词列表
+     * 修复：先去除所有空白字符再匹配，处理"退出 设置"这种带空格的情况
      */
     private boolean matchKeywords(String text, String[] keywords) {
+        // 去除所有空白字符（空格、中文空格、换行、制表符等）
+        String normalized = text.replaceAll("\\s+", "");
         for (String keyword : keywords) {
-            if (text.contains(keyword)) {
+            if (normalized.contains(keyword)) {
                 return true;
             }
         }
@@ -483,6 +556,10 @@ public class LocalIntentEngine {
         sb.append("• 停止导航 - 结束当前导航\n");
         sb.append("• 重复 - 再说一遍上一条\n");
         sb.append("• 快一点/慢一点 - 调整语速\n");
+        sb.append("• 打开设置/进入设置 - 进入设置模式\n");
+        sb.append("• 紧急求助 - 发送紧急帮助\n");
+        sb.append("• 语音助手 - 打开语音助手\n");
+        sb.append("• 语音录入 - 测试语音识别\n");
         sb.append("\n可用目的地：");
         for (int i = 0; i < Math.min(5, availableDestinations.size()); i++) {
             sb.append(availableDestinations.get(i));

@@ -33,7 +33,8 @@
         android:padding="15dp"
         android:background="@drawable/rounded_bg"
         android:imeOptions="actionDone"
-        android:contentDescription="@string/voice_command_hint"/>
+        android:visibility="gone"
+        android:contentDescription="输入目的地"/>
 
     <!-- 3按钮网格布局 -->
     <LinearLayout

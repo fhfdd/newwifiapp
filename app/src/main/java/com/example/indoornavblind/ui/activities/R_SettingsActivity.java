@@ -171,6 +171,20 @@ public class R_SettingsActivity extends AppCompatActivity {
         speakFeedback(getString(R.string.speed_adjusted, speechRate));
     }
 
+    private void updateTtsLanguage() {
+        if (tts != null && tts.isSpeaking()) {
+            tts.stop();  // 先停止正在說的，避免混亂
+        }
+
+        Locale newLocale = (currentLangIndex == 0) ? Locale.CHINESE : Locale.ENGLISH;
+
+        int result = tts.setLanguage(newLocale);
+
+        if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+            // 可選：提示使用者下載語言資料
+            Toast.makeText(this, "該語言資料未安裝", Toast.LENGTH_SHORT).show();
+        }
+    }
     private void onSwipeLeft() {
         currentLangIndex = (currentLangIndex + 1) % languages.length;
         String newLangCode = currentLangIndex == 0 ? "zh" : "en";
@@ -183,6 +197,8 @@ public class R_SettingsActivity extends AppCompatActivity {
         speakFeedback(getString(R.string.language_switched, languages[currentLangIndex]));
 
         recreate();
+        updateTtsLanguage();
+        speakFeedback(getString(R.string.language) + "：" + languages[currentLangIndex]);
     }
 
     private void onSwipeRight() {
@@ -197,6 +213,8 @@ public class R_SettingsActivity extends AppCompatActivity {
         speakFeedback(getString(R.string.language_switched, languages[currentLangIndex]));
 
         recreate();
+        updateTtsLanguage();
+        speakFeedback(getString(R.string.language) + "：" + languages[currentLangIndex]);
     }
 
     private void switchDistanceUnit() {
@@ -243,6 +261,7 @@ public class R_SettingsActivity extends AppCompatActivity {
 
         if (tts != null) {
             tts.stop();
+            updateTtsLanguage();
             tts.setSpeechRate(speechRate);
             tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
         }
@@ -260,6 +279,8 @@ public class R_SettingsActivity extends AppCompatActivity {
 
         if (tts != null) {
             tts.speak(getString(R.string.exit_settings), TextToSpeech.QUEUE_FLUSH, null, null);
+            updateTtsLanguage();
+            tts.speak(currentLangIndex == 0 ? "退出设置" : "Settings closed", TextToSpeech.QUEUE_FLUSH, null, null);
         }
 
         settingsOverlay.setVisibility(View.GONE);
