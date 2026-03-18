@@ -1,5 +1,7 @@
 package com.example.indoornavblind.ui.activities;
 
+import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -20,14 +22,13 @@ import com.example.indoornavblind.database.entity.NavigationNodeEntity;
 import com.example.indoornavblind.model.PathEntity;
 import com.example.indoornavblind.model.Position;
 import com.example.indoornavblind.service.LocationService;
-import com.example.indoornavblind.service.VoiceService;
-import com.example.indoornavblind.service.WiFiScannerService;
 import com.example.indoornavblind.service.VoskSpeechRecognizerService;
 import com.example.indoornavblind.service.PathStorageService;
 import com.example.indoornavblind.service.impl.CompassEnhancedNavigationService;
 import com.example.indoornavblind.service.impl.L_KnnLocationService;
 import com.example.indoornavblind.service.L_WiFiScannerServiceImpl;
 import com.example.indoornavblind.service.impl.LocalIntentEngine;
+import com.example.indoornavblind.util.LanguageManager;
 import com.example.indoornavblind.util.NavigationDataInitializer;
 import com.example.indoornavblind.util.PathParser;
 import com.example.indoornavblind.util.PermissionUtil;
@@ -45,11 +46,11 @@ public class MainActivity extends AppCompatActivity {
     private static final long LONG_PRESS_DURATION = 800;
 
     private ServiceFactory serviceFactory;
-    private C_TextToSpeechService ttsService;      // TTS播报
-    private VoskSpeechRecognizerService voskService; // 语音识别
-    private CompassEnhancedNavigationService navigationService; // 导航
+    private C_TextToSpeechService ttsService;
+    private VoskSpeechRecognizerService voskService;
+    private CompassEnhancedNavigationService navigationService;
     private LocationService locationService;
-    private WiFiScannerService wifiScanner;
+    private L_WiFiScannerServiceImpl wifiScanner;
     private PathStorageService pathStorage;
     private Vibrator vibrator;
 
@@ -58,7 +59,6 @@ public class MainActivity extends AppCompatActivity {
     private Button btnLocateNav, btnVoiceAssistant, btnSettings, btnEmergency;
     private View settingsFullscreen;
     private TextView tvSpeedDisplay, tvLanguageDisplay, tvPaceDisplay;
-    // tv_sensor_status 已移除，因为 XML 中不存在
 
     private Position currentPosition;
     private boolean isInSettingsMode = false;
@@ -68,7 +68,7 @@ public class MainActivity extends AppCompatActivity {
     private float speechSpeed = 1.0f;
     private VoskSpeechRecognizerService.Language currentLanguage = VoskSpeechRecognizerService.Language.CHINESE;
     private int navigationPace = 5000;
-    private String lastNavigationInstruction = ""; // 新增
+    private String lastNavigationInstruction = "";
     private String lastSpokenText = "";
 
     private LocalIntentEngine intentEngine;
@@ -80,39 +80,49 @@ public class MainActivity extends AppCompatActivity {
     private Runnable statusUpdateRunnable;
 
     private GestureDetector gestureDetector;
+
     private static final float SPEED_STEP = 0.1f;
     private static final float SPEED_MIN = 0.5f;
     private static final float SPEED_MAX = 2.0f;
     private static final int[] PACE_OPTIONS = {2000, 3000, 5000, 8000};
     private int paceIndex = 2;
 
+    private TextView tvUnitDisplay;
+    private boolean useSteps = false; // 默认米, 切换为步数
+
+    @Override
+    protected void attachBaseContext(Context newBase) {
+        super.attachBaseContext(LanguageManager.updateBaseContextLocale(newBase));
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-
         super.onCreate(savedInstanceState);
 
-        // 恢复语言设置
-        android.content.SharedPreferences prefs = getSharedPreferences("UserSettings", MODE_PRIVATE);
-        String langTag = prefs.getString("app_locale", null);
-        if (langTag != null) {
-            Locale locale = Locale.forLanguageTag(langTag);
-            if (locale.getLanguage().equals("en")) {
-                currentLanguage = VoskSpeechRecognizerService.Language.ENGLISH;
-            } else if (locale.toLanguageTag().equals("zh-HK")) {
-                currentLanguage = VoskSpeechRecognizerService.Language.CANTONESE;
-            } else {
-                currentLanguage = VoskSpeechRecognizerService.Language.CHINESE;
-            }
-        }
-        applyLocaleWithoutRecreate(currentLanguage.locale);
+        // Load persisted speech speed
+        SharedPreferences prefs = getSharedPreferences("UserSettings", MODE_PRIVATE);
+        speechSpeed = prefs.getFloat("speechRate", 1.0f);
+
+        // Sync language from LanguageManager
+        String langCode = LanguageManager.getLanguage(this);
+        currentLanguage = "en".equals(langCode)
+                ? VoskSpeechRecognizerService.Language.ENGLISH
+                : VoskSpeechRecognizerService.Language.CHINESE;
 
         setContentView(R.layout.activity_main);
+        tvUnitDisplay = findViewById(R.id.tv_unit_display);
+
+// 读取保存的单位偏好
+        useSteps = getSharedPreferences("UserSettings", MODE_PRIVATE)
+                .getBoolean("useSteps", false);
+
+// 初始显示
+        updateUnitDisplay();
 
         android.content.SharedPreferences prefs2 = getSharedPreferences("UserSettings", MODE_PRIVATE);
         boolean wasInSettings = prefs2.getBoolean("in_settings_mode", false);
         if (wasInSettings) {
-            prefs2.edit().putBoolean("in_settings_mode", false).apply(); // 清除标记
+            prefs2.edit().putBoolean("in_settings_mode", false).apply();
         }
 
         PathParser.init(this);
@@ -122,27 +132,42 @@ public class MainActivity extends AppCompatActivity {
         initViews();
         initListeners();
 
+        // Apply loaded speech rate to TTS service
+        if (ttsService != null && ttsService.isReady()) {
+            ttsService.setSpeed(speechSpeed);
+        }
+
         if (wasInSettings) {
             isInSettingsMode = true;
             settingsFullscreen.setVisibility(View.VISIBLE);
             updateSettingsDisplay();
         }
 
-
         new Thread(() -> {
             AppDatabase database = AppDatabase.getInstance();
             NavigationNodeDao dao = database.navigationNodeDao();
 
-            // 检查是否已有数据
             List<NavigationNodeEntity> existingData = dao.getAllNodes();
             if (existingData == null || existingData.isEmpty()) {
                 NavigationDataInitializer.initializeSampleData(dao);
                 Log.d("MainActivity", "Navigation data initialized");
             }
         }).start();
+
     }
 
+    private void updateUnitDisplay() {
+        if (tvUnitDisplay == null) return;
 
+        String unitText;
+        if (currentLanguage == VoskSpeechRecognizerService.Language.ENGLISH) {
+            unitText = useSteps ? "Unit: Steps" : "Unit: Meter";
+        } else {
+            unitText = useSteps ? "距离单位：步数" : "距离单位：米";
+        }
+
+        tvUnitDisplay.setText(unitText);
+    }
     private List<Integer> findFloorsForLocation(String name) {
         Set<Integer> floors = new HashSet<>();
         List<PathEntity> allPaths = PathParser.getAllPaths();
@@ -238,18 +263,11 @@ public class MainActivity extends AppCompatActivity {
     private void initServices() {
         Log.d(TAG, "初始化服务 - 使用工厂模式");
 
-        // 1. 初始化服务工厂（核心）
         serviceFactory = ServiceFactory.getInstance(this);
-
-        // 2. 获取TTS服务（语音播报）
         ttsService = serviceFactory.getTtsService();
-
-        // 3. 获取Vosk服务（语音识别）
         voskService = serviceFactory.getVoskService();
 
-        // 4. 设置Vosk识别监听器（直接处理语音指令）
         voskService.setRecognitionListener(new VoskSpeechRecognizerService.OnRecognitionListener() {
-
             @Override
             public void onResult(ArrayList<String> results) {
                 if (results != null && !results.isEmpty()) {
@@ -266,7 +284,7 @@ public class MainActivity extends AppCompatActivity {
                         Log.d(TAG, "自动重启语音监听");
                         voskService.startListening();
                     }
-                }, 1500); // 延迟增加到1.5秒避免TTS干扰
+                }, 1500);
             }
 
             @Override
@@ -280,22 +298,17 @@ public class MainActivity extends AppCompatActivity {
 
         intentEngine = new LocalIntentEngine(this);
 
-        // 5. 初始化WiFi和定位服务（和原来一样）
         wifiScanner = new L_WiFiScannerServiceImpl();
         wifiScanner.init(this);
         locationService = new L_KnnLocationService(wifiScanner);
         locationService.init(this);
 
-        // 6. 初始化导航服务 - 传入ttsService而不是voiceService
         navigationService = new CompassEnhancedNavigationService(ttsService, locationService);
         navigationService.initSensors(this);
         navigationService.loadUserSettings(this);
 
-        // 7. 设置导航回调（保持你的原有逻辑）
         navigationService.setPositionUpdateCallback(newPosition -> {
-            runOnUiThread(() -> {
-                currentPosition = newPosition;
-            });
+            runOnUiThread(() -> currentPosition = newPosition);
         });
 
         navigationService.setNavigationEventCallback(new CompassEnhancedNavigationService.NavigationEventCallback() {
@@ -307,10 +320,9 @@ public class MainActivity extends AppCompatActivity {
                 });
             }
 
-            // 第310-311行
             @Override
             public void onStepAnnounced(int stepIndex, int totalSteps, String instruction, String absoluteDirection) {
-                lastNavigationInstruction = instruction; // 新增这行
+                lastNavigationInstruction = instruction;
                 runOnUiThread(() -> updateDisplay(String.format("[%d/%d] %s", stepIndex, totalSteps, instruction)));
             }
 
@@ -355,17 +367,14 @@ public class MainActivity extends AppCompatActivity {
             @Override public void onDirectionUpdated(float heading, String cardinal) {}
         });
 
-        // 8. 其他服务
         pathStorage = new PathStorageService(this);
         vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
 
-        // 9. 延迟检查服务状态
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
             checkServicesStatus();
         }, 4000);
     }
 
-    // 检查服务状态的方法
     private void checkServicesStatus() {
         StringBuilder status = new StringBuilder("服务状态: ");
 
@@ -391,7 +400,7 @@ public class MainActivity extends AppCompatActivity {
             if (path.getStartLabel_cn().contains(name) || name.contains(path.getStartLabel_cn())) {
                 Position pos = new Position();
                 pos.setLabel(path.getStartLabel_cn());
-                pos.setFloor(path.getFloor()); // 关键：设置楼层
+                pos.setFloor(path.getFloor());
                 return pos;
             }
             if (path.getEndLabel_cn().contains(name) || name.contains(path.getEndLabel_cn())) {
@@ -431,12 +440,10 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
 
-            // 使用Vosk服务，而不是voiceAssistant
             if (voskService != null && voskService.isInitialized()) {
                 speak("请说出您的指令", speechSpeed);
                 vibrate(100);
 
-                // 延迟开始监听，避免TTS干扰
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
                     voskService.startListening();
                     updateDisplay("正在聆听...");
@@ -444,7 +451,6 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 String input = etVoiceSimulate.getText().toString().trim();
                 if (!input.isEmpty()) {
-                    // 手动输入模式
                     processVoiceCommand(input);
                     etVoiceSimulate.setText("");
                 } else {
@@ -540,26 +546,22 @@ public class MainActivity extends AppCompatActivity {
         vibrate(200);
 
         if (navigationService.isNavigating()) {
-            // 长按：停止导航
             navigationService.stopNavigation();
             hasDestination = false;
             destinationName = "";
             speak("导航已停止", speechSpeed);
             updateDisplay("导航已停止");
         } else {
-            // 长按：开始导航到目的地（如果有）
             if (hasDestination && currentPosition != null) {
                 speak("开始导航到" + destinationName, speechSpeed);
                 startNavigation(destinationName);
             } else if (!hasDestination) {
-                // 没有目的地，播报当前位置信息
                 if (currentPosition != null) {
                     announceCurrentEnvironment();
                 } else {
                     speak("请先定位或设置目的地", speechSpeed);
                 }
             } else {
-                // 有目的地但没有定位
                 speak("正在为您定位", speechSpeed);
                 startLocation();
             }
@@ -651,7 +653,6 @@ public class MainActivity extends AppCompatActivity {
         destinationName = target;
         hasDestination = true;
 
-        // 检查目标位置是否存在
         Position targetPosition = findPositionByName(target);
         if (targetPosition == null) {
             speak("未找到目的地：" + target, speechSpeed);
@@ -677,7 +678,6 @@ public class MainActivity extends AppCompatActivity {
         updateDisplay("导航中 → " + target);
         navigationService.startContinuousNavigation();
     }
-
 
     private void startStatusUpdater() {
         statusUpdateRunnable = new Runnable() {
@@ -735,81 +735,55 @@ public class MainActivity extends AppCompatActivity {
         if (ttsService != null && ttsService.isReady()) {
             ttsService.setSpeed(speechSpeed);
         }
+
+        // Save globally
+        getSharedPreferences("UserSettings", MODE_PRIVATE)
+                .edit()
+                .putFloat("speechRate", speechSpeed)
+                .apply();
+
         updateSettingsDisplay();
         speak(String.format("语速%.1f倍", speechSpeed), speechSpeed);
     }
 
     private void switchLanguage() {
-        VoskSpeechRecognizerService.Language[] langs = VoskSpeechRecognizerService.Language.values();
-        int idx = 0;
-        for (int i = 0; i < langs.length; i++) { if (langs[i] == currentLanguage) { idx = i; break; } }
-        switchToLanguage(langs[(idx + 1) % langs.length]);
-    }
+        String current = LanguageManager.getLanguage(this);
+        String newLang = "zh".equals(current) ? "en" : "zh";
+        LanguageManager.setLanguage(this, newLang);
 
-    private boolean isSwitchingLanguage = false;
+        currentLanguage = "en".equals(newLang)
+                ? VoskSpeechRecognizerService.Language.ENGLISH
+                : VoskSpeechRecognizerService.Language.CHINESE;
 
-    private void switchToLanguage(VoskSpeechRecognizerService.Language language) {
-        if (isSwitchingLanguage) {
-            Log.d(TAG, "正在切换语言中，跳过重复调用");
-            return;
-        }
-
-        if (currentLanguage == language) {
-            Log.d(TAG, "已经是" + language.displayName + "，无需切换");
-            return;
-        }
-
-        isSwitchingLanguage = true;
-        currentLanguage = language;
-
-        // 1. 先更新TTS（不依赖Vosk）
+        // Update global TTS service locale
+        Locale newLocale = "en".equals(newLang) ? Locale.ENGLISH : Locale.SIMPLIFIED_CHINESE;
         if (ttsService != null && ttsService.isReady()) {
-            ttsService.setLanguage(language.locale);
-            ttsService.setSpeed(speechSpeed);
+            ttsService.setLanguage(newLocale);
         }
 
-        // 2. Vosk单独切换，失败不影响其他
-        try {
-            if (serviceFactory != null) {
-                serviceFactory.switchLanguage(language);
-            }
-        } catch (Exception e) {
-            Log.e(TAG, "Vosk切换失败，但不影响UI: " + e.getMessage());
-        }
-
-        // 3. 先播报再recreate（否则recreate后speak会丢失）
-        String msg = "已切换到" + language.displayName;
-        if (ttsService != null && ttsService.isReady()) {
-            ttsService.speak(msg, speechSpeed);
-        }
-
-        // 4. 延迟更新UI，等播报完成
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            updateAppLocale(language.locale);
-            isSwitchingLanguage = false;
-        }, 1500);
-    }
-
-    private void updateAppLocale(Locale locale) {
-        getSharedPreferences("UserSettings", MODE_PRIVATE)
-                .edit()
-                .putString("app_locale", locale.toLanguageTag())
-                .putBoolean("in_settings_mode", isInSettingsMode)
-                .apply();
-
-        android.content.res.Resources res = getResources();
-        android.content.res.Configuration config = res.getConfiguration();
-        config.setLocale(locale);
-        res.updateConfiguration(config, res.getDisplayMetrics());
+        String msg = "zh".equals(newLang) ? "语言已切换为中文" : "Language switched to English";
+        speak(msg, speechSpeed);
 
         recreate();
     }
+    private class GestureListener extends GestureDetector.SimpleOnGestureListener {
+        @Override
+        public boolean onSingleTapConfirmed(MotionEvent e) {
+            useSteps = !useSteps;
+            getSharedPreferences("UserSettings", MODE_PRIVATE)
+                    .edit().putBoolean("useSteps", useSteps).apply();
 
-    private void applyLocaleWithoutRecreate(Locale locale) {
-        android.content.res.Resources res = getResources();
-        android.content.res.Configuration config = res.getConfiguration();
-        config.setLocale(locale);
-        res.updateConfiguration(config, res.getDisplayMetrics());
+            updateUnitDisplay();
+
+            speak(currentLanguage == VoskSpeechRecognizerService.Language.ENGLISH
+                            ? (useSteps ? "Switched to steps mode" : "Switched to meter mode")
+                            : (useSteps ? "已切换为步数模式" : "已切换为米模式"),
+                    speechSpeed);
+
+            if (navigationService != null) navigationService.setUseSteps(useSteps);
+            return true;
+
+        }
     }
 
     private void switchPace() {
@@ -819,13 +793,14 @@ public class MainActivity extends AppCompatActivity {
         speak(String.format("间隔%d秒", navigationPace / 1000), speechSpeed);
     }
 
-    private void updateDisplay(String text) { if (tvTopDisplay != null) tvTopDisplay.setText(text); }
+    private void updateDisplay(String text) {
+        if (tvTopDisplay != null) tvTopDisplay.setText(text);
+    }
 
     private void speak(String text, float speed) {
         lastSpokenText = text;
         updateDisplay(text);
 
-        // 检查音频状态
         android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
         int volume = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
         int maxVol = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
@@ -843,7 +818,9 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void vibrate(long ms) { if (vibrator != null) vibrator.vibrate(ms); }
+    private void vibrate(long ms) {
+        if (vibrator != null) vibrator.vibrate(ms);
+    }
 
     @Override
     protected void onDestroy() {
@@ -855,7 +832,6 @@ public class MainActivity extends AppCompatActivity {
             navigationService.stopNavigation();
         }
 
-        // serviceFactory.shutdown() 内部会处理TTS，但可能已dead，用try包裹
         try {
             if (serviceFactory != null) {
                 serviceFactory.shutdown();

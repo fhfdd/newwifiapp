@@ -1,6 +1,7 @@
 package com.example.indoornavblind.service.impl;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -8,6 +9,7 @@ import android.hardware.SensorManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
+import android.widget.Toast;
 
 import com.example.indoornavblind.model.PathEntity;
 import com.example.indoornavblind.model.Position;
@@ -22,6 +24,14 @@ import java.util.Locale;
 
 public class CompassEnhancedNavigationService implements NavigationService, SensorEventListener {
     private static final String TAG = "CompassNavigation";
+    private boolean useSteps = false;
+    public void setUseSteps(boolean useSteps) {
+        this.useSteps = useSteps;
+    }
+
+    public boolean isUseSteps() {
+        return useSteps;
+    }
 
     public interface PositionUpdateCallback {
         void onPositionUpdated(Position newPosition);
@@ -147,7 +157,7 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
 
     public void loadUserSettings(Context context) {
         this.appContext = context;
-        android.content.SharedPreferences prefs = context.getSharedPreferences("UserSettings", Context.MODE_PRIVATE);
+        SharedPreferences prefs = context.getSharedPreferences("UserSettings", Context.MODE_PRIVATE);
         String stepLengthStr = prefs.getString("stepLength", "0.65");
         try {
             this.stepLength = Double.parseDouble(stepLengthStr);
@@ -506,7 +516,7 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
     private void showDebugToast(String msg) {
         if (appContext != null) {
             new Handler(Looper.getMainLooper()).post(() ->
-                    android.widget.Toast.makeText(appContext, msg, android.widget.Toast.LENGTH_SHORT).show()
+                    Toast.makeText(appContext, msg, Toast.LENGTH_SHORT).show()
             );
         }
     }
