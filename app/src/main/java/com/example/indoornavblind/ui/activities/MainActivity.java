@@ -1,447 +1,1136 @@
-package com.example.indoornavblind.service;
+package com.example.indoornavblind.ui.activities;
 
-import android.content.Context;
-import android.content.SharedPreferences;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.Vibrator;
 import android.util.Log;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
+import android.view.View;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.TextView;
+import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.indoornavblind.ui.view.GlowView;
+
+import com.example.indoornavblind.R;
+import com.example.indoornavblind.database.AppDatabase;
+import com.example.indoornavblind.database.NavigationNodeDao;
+import com.example.indoornavblind.database.entity.NavigationNodeEntity;
+import com.example.indoornavblind.model.PathEntity;
 import com.example.indoornavblind.model.Position;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.example.indoornavblind.service.C_SpeechRecognizerService;
+import com.example.indoornavblind.service.LocationService;
+import com.example.indoornavblind.service.WiFiScannerService;
+import com.example.indoornavblind.service.VoskSpeechRecognizerService;
+import com.example.indoornavblind.service.PathStorageService;
+import com.example.indoornavblind.service.impl.CompassEnhancedNavigationService;
+import com.example.indoornavblind.service.impl.L_KnnLocationService;
+import com.example.indoornavblind.service.L_WiFiScannerServiceImpl;
+import com.example.indoornavblind.service.impl.LocalIntentEngine;
+import com.example.indoornavblind.util.NavigationDataInitializer;
+import com.example.indoornavblind.util.PathParser;
+import com.example.indoornavblind.util.PermissionUtil;
+import com.example.indoornavblind.factory.ServiceFactory;
+import com.example.indoornavblind.service.C_TextToSpeechService;
 
-import java.lang.reflect.Type;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
+import java.util.Locale;
+import java.util.Set;
 
-/**
- * 本地路径存储服务
- *
- * 功能：
- * 1. 存储常用起点和终点
- * 2. 存储历史导航路径
- * 3. 快速访问收藏位置
- * 4. 完全离线本地存储
- * 5. 支持语音快速调用
- */
-public class PathStorageService {
-    private static final String TAG = "PathStorage";
-    private static final String PREFS_NAME = "path_storage";
-    private static final String KEY_FAVORITE_LOCATIONS = "favorite_locations";
-    private static final String KEY_RECENT_ROUTES = "recent_routes";
-    private static final String KEY_COMMON_START_POINTS = "common_start_points";
-    private static final String KEY_HOME_LOCATION = "home_location";
-    private static final String KEY_WORK_LOCATION = "work_location";
+public class MainActivity extends AppCompatActivity {
+    private static final String TAG = "MainActivity";
+    private static final long LONG_PRESS_DURATION = 800;
 
-    private Context context;
-    private SharedPreferences prefs;
-    private Gson gson;
+    private ServiceFactory serviceFactory;
+    private C_TextToSpeechService ttsService;      // TTS播报
+    private VoskSpeechRecognizerService voskService; // 语音识别
+    private CompassEnhancedNavigationService navigationService; // 导航
+    private LocationService locationService;
+    private WiFiScannerService wifiScanner;
+    private PathStorageService pathStorage;
+    private Vibrator vibrator;
 
-    // 内存缓存
-    private Map<String, Position> favoriteLocations;
-    private List<RouteRecord> recentRoutes;
-    private Map<String, Integer> commonStartPoints;
-    private String homeLocation;
-    private String workLocation;
+    private TextView tvTopDisplay;
+    private GlowView viewGlowOverlay; // 绿色光晕闪烁覆盖层（自定义呼吸灯View）
+    private EditText etVoiceSimulate;
+    private Button btnLocateNav, btnVoiceAssistant, btnSettings, btnEmergency;
+    private View settingsFullscreen;
+    private TextView tvSpeedDisplay, tvLanguageDisplay, tvPaceDisplay;
+    // tv_sensor_status 已移除，因为 XML 中不存在
 
-    /**
-     * 路径记录类
-     */
-    public static class RouteRecord {
-        public String from;
-        public String to;
-        public long timestamp;
-        public int useCount;
+    private Position currentPosition;
+    private boolean isInSettingsMode = false;
+    private boolean isLocated = false;
+    private boolean hasDestination = false;
+    private String destinationName = "";
+    private float speechSpeed = 1.0f;
+    private VoskSpeechRecognizerService.Language currentLanguage = VoskSpeechRecognizerService.Language.CHINESE;
+    private int navigationPace = 5000;
+    private String lastNavigationInstruction = ""; // 新增
+    private String lastSpokenText = "";
+    private String lastRecognizedText = ""; // 最后识别的Vosk内容
 
-        public RouteRecord(String from, String to) {
-            this.from = from;
-            this.to = to;
-            this.timestamp = System.currentTimeMillis();
-            this.useCount = 1;
+    // TTS回声保护机制（防止TTS声音被识别成指令）
+    private long lastTtsEndTime = 0;
+    private static final long TTS_END_ECHO_WINDOW_MS = 500; // TTS结束后500ms内的识别结果忽略
+
+    private LocalIntentEngine intentEngine;
+
+    private Handler longPressHandler = new Handler(Looper.getMainLooper());
+    private Runnable longPressRunnable;
+    private boolean isLongPressTriggered = false;
+    private Handler statusUpdateHandler = new Handler(Looper.getMainLooper());
+    private Runnable statusUpdateRunnable;
+
+    // 语音助手按住说话相关
+    private boolean isVoiceButtonPressed = false;
+    private boolean isVoiceRecording = false;
+
+    private GestureDetector gestureDetector;
+    private VoskSpeechRecognizerService.OnRecognitionListener voskServiceListener;  // 保存原有监听器
+    private static final float SPEED_STEP = 0.1f;
+    private static final float SPEED_MIN = 0.5f;
+    private static final float SPEED_MAX = 2.0f;
+    private static final int[] PACE_OPTIONS = {2000, 3000, 5000, 8000};
+    private int paceIndex = 2;
+
+    /** 匹配不到的位置名称缓存（用户说”我在xx”但 xx 不在已知地点列表中时写入） */
+    private Set<String> unmatchedLocationCache = new LinkedHashSet<>();
+    private static final String PREF_UNMATCHED_LOCATION_CACHE = "unmatched_location_cache";
+
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+
+        super.onCreate(savedInstanceState);
+
+        // 恢复语言设置
+        android.content.SharedPreferences prefs = getSharedPreferences("UserSettings", MODE_PRIVATE);
+        String langTag = prefs.getString("app_locale", null);
+        if (langTag != null) {
+            Locale locale = Locale.forLanguageTag(langTag);
+            if (locale.getLanguage().equals("en")) {
+                currentLanguage = VoskSpeechRecognizerService.Language.ENGLISH;
+            } else if (locale.toLanguageTag().equals("zh-HK")) {
+                currentLanguage = VoskSpeechRecognizerService.Language.CANTONESE;
+            } else {
+                currentLanguage = VoskSpeechRecognizerService.Language.CHINESE;
+            }
+        }
+        applyLocaleWithoutRecreate(currentLanguage.locale);
+
+        setContentView(R.layout.activity_main);
+
+        android.content.SharedPreferences prefs2 = getSharedPreferences("UserSettings", MODE_PRIVATE);
+        boolean wasInSettings = prefs2.getBoolean("in_settings_mode", false);
+        if (wasInSettings) {
+            prefs2.edit().putBoolean("in_settings_mode", false).apply(); // 清除标记
         }
 
-        public void incrementUseCount() {
-            this.useCount++;
-            this.timestamp = System.currentTimeMillis();
+        PathParser.init(this);
+        PermissionUtil.requestAllPermissions(this);
+        loadUnmatchedLocationCache();
+
+        initServices();
+        initViews();
+        initListeners();
+
+        if (wasInSettings) {
+            isInSettingsMode = true;
+            settingsFullscreen.setVisibility(View.VISIBLE);
+            updateSettingsDisplay();
         }
 
-        @Override
-        public String toString() {
-            return String.format("%s → %s (使用%d次)", from, to, useCount);
+
+        new Thread(() -> {
+            AppDatabase database = AppDatabase.getInstance();
+            NavigationNodeDao dao = database.navigationNodeDao();
+
+            // 检查是否已有数据
+            List<NavigationNodeEntity> existingData = dao.getAllNodes();
+            if (existingData == null || existingData.isEmpty()) {
+                NavigationDataInitializer.initializeSampleData(dao);
+                Log.d("MainActivity", "Navigation data initialized");
+            }
+        }).start();
+    }
+
+
+    private List<Integer> findFloorsForLocation(String name) {
+        Set<Integer> floors = new HashSet<>();
+        List<PathEntity> allPaths = PathParser.getAllPaths();
+        for (PathEntity path : allPaths) {
+            if (path.getStartLabel_cn().contains(name) || path.getEndLabel_cn().contains(name)) {
+                floors.add(path.getFloor());
+            }
         }
+        return new ArrayList<>(floors);
     }
 
-    public PathStorageService(Context context) {
-        this.context = context;
-        this.prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-        this.gson = new Gson();
+    private void processVoiceCommand(String command) {
+        if (command == null || command.trim().isEmpty()) return;
 
-        loadAllData();
-    }
+        LocalIntentEngine.IntentResult result = intentEngine.recognize(command);
+        Log.d(TAG, "意图识别: " + result);
 
-    /**
-     * 加载所有数据
-     */
-    private void loadAllData() {
-        loadFavoriteLocations();
-        loadRecentRoutes();
-        loadCommonStartPoints();
-        loadSpecialLocations();
-
-        Log.d(TAG, "数据加载完成");
-        Log.d(TAG, "收藏位置: " + favoriteLocations.size());
-        Log.d(TAG, "历史路径: " + recentRoutes.size());
-    }
-
-    /**
-     * 加载收藏位置
-     */
-    private void loadFavoriteLocations() {
-        String json = prefs.getString(KEY_FAVORITE_LOCATIONS, "{}");
-        Type type = new TypeToken<Map<String, Position>>(){}.getType();
-        favoriteLocations = gson.fromJson(json, type);
-
-        if (favoriteLocations == null) {
-            favoriteLocations = new HashMap<>();
-        }
-    }
-
-    /**
-     * 加载历史路径
-     */
-    private void loadRecentRoutes() {
-        String json = prefs.getString(KEY_RECENT_ROUTES, "[]");
-        Type type = new TypeToken<List<RouteRecord>>(){}.getType();
-        recentRoutes = gson.fromJson(json, type);
-
-        if (recentRoutes == null) {
-            recentRoutes = new ArrayList<>();
-        }
-    }
-
-    /**
-     * 加载常用起点
-     */
-    private void loadCommonStartPoints() {
-        String json = prefs.getString(KEY_COMMON_START_POINTS, "{}");
-        Type type = new TypeToken<Map<String, Integer>>(){}.getType();
-        commonStartPoints = gson.fromJson(json, type);
-
-        if (commonStartPoints == null) {
-            commonStartPoints = new HashMap<>();
-        }
-    }
-
-    /**
-     * 加载特殊位置（家/公司）
-     */
-    private void loadSpecialLocations() {
-        homeLocation = prefs.getString(KEY_HOME_LOCATION, null);
-        workLocation = prefs.getString(KEY_WORK_LOCATION, null);
-    }
-
-    /**
-     * 添加收藏位置
-     */
-    public void addFavoriteLocation(String name, Position position) {
-        favoriteLocations.put(name, position);
-        saveFavoriteLocations();
-        Log.d(TAG, "添加收藏位置: " + name);
-    }
-
-    /**
-     * 移除收藏位置
-     */
-    public void removeFavoriteLocation(String name) {
-        favoriteLocations.remove(name);
-        saveFavoriteLocations();
-        Log.d(TAG, "移除收藏位置: " + name);
-    }
-
-    /**
-     * 获取收藏位置
-     */
-    public Position getFavoriteLocation(String name) {
-        return favoriteLocations.get(name);
-    }
-
-    /**
-     * 获取所有收藏位置
-     */
-    public Map<String, Position> getAllFavoriteLocations() {
-        return new HashMap<>(favoriteLocations);
-    }
-
-    /**
-     * 记录路径使用
-     */
-    public void recordRoute(String from, String to) {
-        // 查找是否已存在
-        RouteRecord existing = null;
-        for (RouteRecord route : recentRoutes) {
-            if (route.from.equals(from) && route.to.equals(to)) {
-                existing = route;
+        switch (result.intent) {
+            case NAVIGATE:
+                if (result.destination != null) {
+                    destinationName = result.destination;
+                    hasDestination = true;
+                    speak("正在导航到" + result.destination, speechSpeed);
+                    startNavigation(result.destination);
+                } else {
+                    speak("请说出目的地", speechSpeed);
+                }
                 break;
-            }
+            case SET_LOCATION:
+                // 如果没有定位，语音监听到“我在xx”时执行定位到xx
+                if (result.destination == null) break;
+                if (!isLocated || currentPosition == null) {
+                    speak("正在定位到" + result.destination, speechSpeed);
+                    updateDisplay("定位到 " + result.destination + "…");
+                }
+                Position pos = findPositionByNameOrCache(result.destination);
+                if (pos != null) {
+                    currentPosition = pos;
+                    isLocated = true;
+                    navigationService.setCurrentPosition(pos);
+                    speak("已定位到" + pos.getLabel(), speechSpeed);
+                    updateDisplay("当前位置：" + pos.getLabel());
+                } else {
+                    addToUnmatchedLocationCache(result.destination);
+                    speak("未找到位置" + result.destination + "，已缓存，正在尝试WiFi定位", speechSpeed);
+                    updateDisplay("未找到「" + result.destination + "」，已缓存，正在定位…");
+                    startLocation();
+                }
+                break;
+            case STOP_NAVIGATION:
+                if (navigationService.isNavigating()) {
+                    navigationService.stopNavigation();
+                    speak("导航已停止", speechSpeed);
+                }
+                break;
+            case QUERY_LOCATION:
+                speak(currentPosition != null ? "您在" + currentPosition.getLabel() : "位置未知", speechSpeed);
+                break;
+            case REPEAT:
+                if (!lastSpokenText.isEmpty()) speak(lastSpokenText, speechSpeed);
+                break;
+            case HELP:
+                speak(intentEngine.getHelpText(), speechSpeed);
+                break;
+            case LOCATE:
+                startLocation();
+                break;
+            case QUERY_NEARBY:
+                if (currentPosition != null) announceNearbyPOIs(currentPosition);
+                else speak("请先定位", speechSpeed);
+                break;
+            case QUERY_PROGRESS:
+                if (navigationService.isNavigating()) {
+                    speak("导航进行中，请继续前进", speechSpeed);
+                } else {
+                    speak("当前没有进行导航", speechSpeed);
+                }
+                break;
+            case START_NAVIGATION:
+                if (hasDestination && currentPosition != null) {
+                    startNavigation(destinationName);
+                } else {
+                    speak("请先设置目的地并定位", speechSpeed);
+                }
+                break;
+            case ENTER_SETTINGS:
+                enterSettingsMode();
+                break;
+            case EXIT_SETTINGS:
+                if (isInSettingsMode) {
+                    exitSettingsMode();
+                } else {
+                    speak("当前不在设置模式", speechSpeed);
+                }
+                break;
+            case SPEED_UP:
+                adjustSpeed(SPEED_STEP);
+                break;
+            case SPEED_DOWN:
+                adjustSpeed(-SPEED_STEP);
+                break;
+            case EMERGENCY:
+                btnEmergency.performClick();
+                break;
+            case VOICE_ASSISTANT:
+                btnVoiceAssistant.performClick();
+                break;
+            case CONTINUE_NAVIGATION:
+                if (hasDestination && currentPosition != null) {
+                    startNavigation(destinationName);
+                } else {
+                    speak("请先设置目的地并定位", speechSpeed);
+                }
+                break;
+            case FLOOR_UP:
+                speak("请使用楼梯或电梯上楼", speechSpeed);
+                break;
+            case FLOOR_DOWN:
+                speak("请使用楼梯或电梯下楼", speechSpeed);
+                break;
+            default:
+                speak("未识别: " + command, speechSpeed);
         }
+    }
 
-        if (existing != null) {
-            // 增加使用次数
-            existing.incrementUseCount();
+    private void initServices() {
+        Log.d(TAG, "初始化服务 - 使用工厂模式");
+
+        // 1. 初始化服务工厂（核心）
+        serviceFactory = ServiceFactory.getInstance(this);
+
+        // 2. 获取TTS服务（语音播报）
+        ttsService = serviceFactory.getTtsService();
+
+        // 2.1 设置TTS状态监听器：仅用于光晕效果，不控制Vosk（Vosk只在按住按钮时工作）
+        ttsService.setTTSSpeechListener(new C_TextToSpeechService.TTSSpeechListener() {
+            @Override
+            public void onSpeechStart() {
+                Log.d(TAG, "TTS开始播报");
+                runOnUiThread(() -> {
+                    // 启动绿色光晕闪烁效果
+                    startGlowEffect();
+                });
+            }
+
+            @Override
+            public void onSpeechDone() {
+                Log.d(TAG, "TTS播报完成");
+                // 记录TTS结束时间，用于回声保护
+                lastTtsEndTime = System.currentTimeMillis();
+                runOnUiThread(() -> {
+                    // 停止绿色光晕闪烁效果
+                    stopGlowEffect();
+                });
+            }
+
+            @Override
+            public void onSpeechError(String errorMessage) {
+                Log.d(TAG, "TTS播报出错");
+                // 记录TTS结束时间，用于回声保护
+                lastTtsEndTime = System.currentTimeMillis();
+                runOnUiThread(() -> {
+                    // 停止绿色光晕闪烁效果
+                    stopGlowEffect();
+                });
+            }
+        });
+
+        // 3. 获取Vosk服务（语音识别）
+        voskService = serviceFactory.getVoskService();
+
+        // 4. 设置Vosk识别监听器（直接处理语音指令）
+        voskServiceListener = new VoskSpeechRecognizerService.OnRecognitionListener() {
+
+            @Override
+            public void onResult(ArrayList<String> results) {
+                if (results != null && !results.isEmpty()) {
+                    String command = cleanRecognizedText(results.get(0));
+                    Log.d(TAG, "Vosk识别结果: " + command);
+
+                    // 回声窗口保护（TTS刚结束后可能有残留回声）
+                    long timeSinceTtsEnd = System.currentTimeMillis() - lastTtsEndTime;
+                    if (timeSinceTtsEnd < TTS_END_ECHO_WINDOW_MS) {
+                        Log.d(TAG, "TTS结束后" + timeSinceTtsEnd + "ms内的识别，忽略可能是回声: " + command);
+                        return;
+                    }
+
+                    runOnUiThread(() -> {
+                        lastRecognizedText = command;
+                        updateDisplay("识别: " + command);
+                        vibrate(30); // 轻微震动表示识别成功
+                        processVoiceCommand(command);
+                    });
+                }
+            }
+
+            @Override
+            public void onError(String errorMsg) {
+                Log.e(TAG, "Vosk识别错误: " + errorMsg);
+                // 检查是否在TTS保护窗口期内
+                long timeSinceTtsEnd = System.currentTimeMillis() - lastTtsEndTime;
+                if (timeSinceTtsEnd < TTS_END_ECHO_WINDOW_MS) {
+                    return; // 静默忽略，不处理错误
+                }
+                runOnUiThread(() -> {
+                    speak("识别失败，请重试", speechSpeed);
+                });
+            }
+        };
+        voskService.setRecognitionListener(voskServiceListener);
+
+        intentEngine = new LocalIntentEngine(this);
+
+        // 5. 初始化WiFi和定位服务（和原来一样）
+        wifiScanner = new L_WiFiScannerServiceImpl();
+        wifiScanner.init(this);
+        locationService = new L_KnnLocationService(wifiScanner);
+        locationService.init(this);
+
+        // 6. 初始化导航服务 - 传入ttsService而不是voiceService
+        navigationService = new CompassEnhancedNavigationService(ttsService, locationService);
+        navigationService.initSensors(this);
+        navigationService.loadUserSettings(this);
+
+        // 7. 设置导航回调（保持你的原有逻辑）
+        navigationService.setPositionUpdateCallback(newPosition -> {
+            runOnUiThread(() -> {
+                currentPosition = newPosition;
+            });
+        });
+
+        navigationService.setNavigationEventCallback(new CompassEnhancedNavigationService.NavigationEventCallback() {
+            @Override
+            public void onNavigationStarted(String from, String to, int totalSteps, double totalDistance, int estimatedSeconds) {
+                runOnUiThread(() -> {
+                    updateDisplay(String.format("导航开始：%s → %s", from, to));
+                    vibrate(200);
+                });
+            }
+
+            // 第310-311行
+            @Override
+            public void onStepAnnounced(int stepIndex, int totalSteps, String instruction, String absoluteDirection) {
+                lastNavigationInstruction = instruction; // 新增这行
+                runOnUiThread(() -> updateDisplay(String.format("[%d/%d] %s", stepIndex, totalSteps, instruction)));
+            }
+
+            @Override public void onTurnWarning(String t, String a, int s) {
+                runOnUiThread(() -> vibrate(100));
+            }
+
+            @Override public void onProgressUpdate(int c, int r, double d) {}
+
+            @Override
+            public void onArrival(String destination, String detailInfo) {
+                runOnUiThread(() -> {
+                    hasDestination = false;
+                    destinationName = "";
+                    updateDisplay("已到达：" + destination);
+                    vibrate(500);
+                    if (pathStorage != null && currentPosition != null) {
+                        pathStorage.recordRoute(currentPosition.getLabel(), destination);
+                    }
+                });
+            }
+
+            @Override
+            public void onNavigationStopped(boolean reachedDestination) {
+                runOnUiThread(() -> {
+                    if (!reachedDestination) updateDisplay("导航已停止");
+                });
+            }
+
+            @Override
+            public void onOffRoute(double deviationMeters) {
+                runOnUiThread(() -> {
+                    vibrate(300);
+                    speak(String.format("偏离路线%.1f米", deviationMeters), speechSpeed);
+                });
+            }
+
+            @Override public void onLocationUpdated(Position position) {
+                runOnUiThread(() -> currentPosition = position);
+            }
+
+            @Override public void onDirectionUpdated(float heading, String cardinal) {}
+        });
+
+        // 8. 其他服务
+        pathStorage = new PathStorageService(this);
+        vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+
+        // 9. 延迟检查服务状态
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            checkServicesStatus();
+        }, 4000);
+    }
+
+    // 检查服务状态的方法
+    private void checkServicesStatus() {
+        StringBuilder status = new StringBuilder("服务状态: ");
+
+        if (ttsService != null && ttsService.isReady()) {
+            status.append("TTS就绪 ");
         } else {
-            // 新建记录
-            RouteRecord newRoute = new RouteRecord(from, to);
-            recentRoutes.add(0, newRoute);
+            status.append("TTS未就绪 ");
+        }
 
-            // 限制历史记录数量（最多50条）
-            if (recentRoutes.size() > 50) {
-                recentRoutes.remove(recentRoutes.size() - 1);
+        if (voskService != null && voskService.isInitialized()) {
+            status.append("Vosk就绪 ");
+        } else {
+            status.append("Vosk未就绪 ");
+        }
+
+        Log.d(TAG, status.toString());
+        speak("语音系统初始化完成", speechSpeed);
+    }
+
+    private Position findPositionByName(String name) {
+        List<PathEntity> allPaths = PathParser.getAllPaths();
+        for (PathEntity path : allPaths) {
+            if (path.getStartLabel_cn().contains(name) || name.contains(path.getStartLabel_cn())) {
+                Position pos = new Position();
+                pos.setLabel(path.getStartLabel_cn());
+                pos.setFloor(path.getFloor()); // 关键：设置楼层
+                return pos;
+            }
+            if (path.getEndLabel_cn().contains(name) || name.contains(path.getEndLabel_cn())) {
+                Position pos = new Position();
+                pos.setLabel(path.getEndLabel_cn());
+                pos.setFloor(path.getFloor());
+                return pos;
             }
         }
-
-        // 更新常用起点统计
-        int currentCount = commonStartPoints.containsKey(from) ? commonStartPoints.get(from) : 0;
-        commonStartPoints.put(from, currentCount + 1);
-
-        saveRecentRoutes();
-        saveCommonStartPoints();
-
-        Log.d(TAG, "记录路径: " + from + " → " + to);
-    }
-
-    /**
-     * 获取最近使用的路径
-     */
-    public List<RouteRecord> getRecentRoutes(int limit) {
-        int count = Math.min(limit, recentRoutes.size());
-        return new ArrayList<>(recentRoutes.subList(0, count));
-    }
-
-    /**
-     * 获取最常用的路径
-     */
-    public List<RouteRecord> getMostUsedRoutes(int limit) {
-        List<RouteRecord> sorted = new ArrayList<>(recentRoutes);
-        // 修改这里：使用 Collections.sort() 代替 List.sort()
-        Collections.sort(sorted, new Comparator<RouteRecord>() {
-            @Override
-            public int compare(RouteRecord r1, RouteRecord r2) {
-                return Integer.compare(r2.useCount, r1.useCount);
-            }
-        });
-
-        int count = Math.min(limit, sorted.size());
-        return sorted.subList(0, count);
-    }
-
-    /**
-     * 获取最常用的起点
-     */
-    public List<String> getMostCommonStartPoints(int limit) {
-        List<Map.Entry<String, Integer>> sorted = new ArrayList<>(commonStartPoints.entrySet());
-        // 修改这里：使用 Collections.sort() 代替 List.sort()
-        Collections.sort(sorted, new Comparator<Map.Entry<String, Integer>>() {
-            @Override
-            public int compare(Map.Entry<String, Integer> e1, Map.Entry<String, Integer> e2) {
-                return Integer.compare(e2.getValue(), e1.getValue());
-            }
-        });
-
-        List<String> result = new ArrayList<>();
-        int count = Math.min(limit, sorted.size());
-        for (int i = 0; i < count; i++) {
-            result.add(sorted.get(i).getKey());
-        }
-
-        return result;
-    }
-
-    /**
-     * 设置家位置
-     */
-    public void setHomeLocation(String location) {
-        this.homeLocation = location;
-        prefs.edit().putString(KEY_HOME_LOCATION, location).apply();
-        Log.d(TAG, "设置家位置: " + location);
-    }
-
-    /**
-     * 获取家位置
-     */
-    public String getHomeLocation() {
-        return homeLocation;
-    }
-
-    /**
-     * 设置公司位置
-     */
-    public void setWorkLocation(String location) {
-        this.workLocation = location;
-        prefs.edit().putString(KEY_WORK_LOCATION, location).apply();
-        Log.d(TAG, "设置公司位置: " + location);
-    }
-
-    /**
-     * 获取公司位置
-     */
-    public String getWorkLocation() {
-        return workLocation;
-    }
-
-    /**
-     * 根据语音指令快速获取位置
-     * 例如："回家"、"去公司"、"去我常去的厕所"
-     */
-    public String resolveVoiceCommand(String command) {
-        command = command.toLowerCase().trim();
-
-        // 特殊位置
-        if (command.contains("家") || command.contains("home")) {
-            return homeLocation;
-        }
-
-        if (command.contains("公司") || command.contains("work") || command.contains("办公室")) {
-            return workLocation;
-        }
-
-        // 收藏位置
-        for (String favName : favoriteLocations.keySet()) {
-            if (command.contains(favName)) {
-                return favName;
-            }
-        }
-
-        // 常用起点（如"我常去的厕所"）
-        if (command.contains("常去") || command.contains("usual")) {
-            String location = extractLocationKeyword(command);
-            if (location != null && commonStartPoints.containsKey(location)) {
-                return location;
-            }
-        }
-
         return null;
     }
 
-    /**
-     * 提取位置关键词
-     */
-    private String extractLocationKeyword(String command) {
-        String[] keywords = {"厕所", "洗手间", "浴室", "楼梯", "电梯", "门口", "出口", "入口"};
-
-        for (String keyword : keywords) {
-            if (command.contains(keyword)) {
-                return keyword;
+    /** 匹配位置：先查路径数据，再查未匹配位置缓存；缓存命中则用该名称构造 Position（楼层为 0） */
+    private Position findPositionByNameOrCache(String name) {
+        if (name == null || name.trim().isEmpty()) return null;
+        String n = name.trim();
+        Position pos = findPositionByName(n);
+        if (pos != null) return pos;
+        for (String cached : unmatchedLocationCache) {
+            if (cached.equalsIgnoreCase(n) || n.contains(cached) || cached.contains(n)) {
+                Position fromCache = new Position();
+                fromCache.setLabel(cached);
+                fromCache.setFloor(0);
+                Log.d(TAG, "从缓存匹配位置: " + cached);
+                return fromCache;
             }
         }
-
         return null;
     }
 
-    /**
-     * 智能推荐目的地
-     * 基于当前位置和历史记录
-     */
-    public List<String> recommendDestinations(String currentLocation, int limit) {
-        List<String> recommendations = new ArrayList<>();
-        Map<String, Integer> scores = new HashMap<>();
-
-        // 统计从当前位置出发的历史目的地
-        for (RouteRecord route : recentRoutes) {
-            if (route.from.equals(currentLocation)) {
-                int currentScore = scores.containsKey(route.to) ? scores.get(route.to) : 0;
-                scores.put(route.to, currentScore + route.useCount);
+    /** 从 SharedPreferences 加载未匹配位置缓存 */
+    private void loadUnmatchedLocationCache() {
+        android.content.SharedPreferences prefs = getSharedPreferences("UserSettings", MODE_PRIVATE);
+        String saved = prefs.getString(PREF_UNMATCHED_LOCATION_CACHE, "");
+        unmatchedLocationCache = new LinkedHashSet<>();
+        if (!saved.isEmpty()) {
+            for (String s : saved.split(",")) {
+                String t = s.trim();
+                if (!t.isEmpty()) unmatchedLocationCache.add(t);
             }
         }
+    }
 
-        // 排序 - 修改这里：使用 Collections.sort() 代替 List.sort()
-        List<Map.Entry<String, Integer>> sorted = new ArrayList<>(scores.entrySet());
-        Collections.sort(sorted, new Comparator<Map.Entry<String, Integer>>() {
-            @Override
-            public int compare(Map.Entry<String, Integer> e1, Map.Entry<String, Integer> e2) {
-                return Integer.compare(e2.getValue(), e1.getValue());
-            }
+    /** 将未匹配位置缓存写入 SharedPreferences */
+    private void saveUnmatchedLocationCache() {
+        android.content.SharedPreferences prefs = getSharedPreferences("UserSettings", MODE_PRIVATE);
+        prefs.edit().putString(PREF_UNMATCHED_LOCATION_CACHE, String.join(",", unmatchedLocationCache)).apply();
+    }
+
+    /** 将匹配不到的位置名称加入缓存并持久化 */
+    private void addToUnmatchedLocationCache(String locationName) {
+        if (locationName == null || locationName.trim().isEmpty()) return;
+        String name = locationName.trim();
+        unmatchedLocationCache.add(name);
+        saveUnmatchedLocationCache();
+        Log.d(TAG, "未匹配位置已缓存: " + name + ", 缓存数量: " + unmatchedLocationCache.size());
+    }
+
+    private void initViews() {
+        tvTopDisplay = findViewById(R.id.tv_top_display);
+        viewGlowOverlay = findViewById(R.id.view_glow_overlay);
+        etVoiceSimulate = findViewById(R.id.et_voice_simulate);
+        btnLocateNav = findViewById(R.id.btn_locate_nav);
+        btnVoiceAssistant = findViewById(R.id.btn_voice_assistant);
+        btnSettings = findViewById(R.id.btn_settings);
+        btnEmergency = findViewById(R.id.btn_emergency);
+        settingsFullscreen = findViewById(R.id.settings_fullscreen);
+        tvSpeedDisplay = findViewById(R.id.tv_speed_display);
+        tvLanguageDisplay = findViewById(R.id.tv_language_display);
+        tvPaceDisplay = findViewById(R.id.tv_pace_display);
+    }
+
+    private void initListeners() {
+        tvTopDisplay.setOnClickListener(v -> {
+            String toSpeak = !lastNavigationInstruction.isEmpty() ? lastNavigationInstruction : lastSpokenText;
+            if (!toSpeak.isEmpty()) { speak(toSpeak, speechSpeed); vibrate(50); }
         });
 
-        // 取前N个
-        int count = Math.min(limit, sorted.size());
-        for (int i = 0; i < count; i++) {
-            recommendations.add(sorted.get(i).getKey());
+        setupLocateNavButton();
+
+        // 语音助手按钮 - 按住说话（类似微信）
+        btnVoiceAssistant.setOnTouchListener((v, event) -> {
+            if (isInSettingsMode) {
+                speak("请先退出设置模式", speechSpeed);
+                return true;
+            }
+
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    // 按下：开始录音
+                    isVoiceButtonPressed = true;
+                    handleVoiceButtonPress();
+                    return true;
+
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    // 松开：停止录音并处理
+                    if (isVoiceButtonPressed) {
+                        isVoiceButtonPressed = false;
+                        handleVoiceButtonRelease();
+                    }
+                    return true;
+            }
+            return false;
+        });
+        btnSettings.setOnClickListener(v -> enterSettingsMode());
+
+        btnEmergency.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_DIAL);
+            intent.setData(Uri.parse("tel:+85212345678"));
+            startActivity(intent);
+        });
+
+        setupSettingsGestures();
+        startStatusUpdater();
+
+        etVoiceSimulate.setOnEditorActionListener((v, actionId, event) -> {
+            String input = etVoiceSimulate.getText().toString().trim();
+            if (!input.isEmpty()) {
+                processVoiceCommand(input);
+                etVoiceSimulate.setText("");
+            }
+            return true;
+        });
+    }
+
+    private void setupLocateNavButton() {
+        btnLocateNav.setOnTouchListener((v, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    isLongPressTriggered = false;
+                    longPressRunnable = () -> { isLongPressTriggered = true; onLongPressDetected(); };
+                    longPressHandler.postDelayed(longPressRunnable, LONG_PRESS_DURATION);
+                    return true;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    longPressHandler.removeCallbacks(longPressRunnable);
+                    if (!isLongPressTriggered) onSingleClickDetected();
+                    return true;
+            }
+            return false;
+        });
+    }
+
+    private void onSingleClickDetected() {
+        if (isInSettingsMode) {
+            speak("请先退出设置模式", speechSpeed);
+            return;
+        }
+        vibrate(50);
+
+        if (navigationService.isWaitingForElevator()) {
+            navigationService.confirmElevatorArrival();
+            return;
         }
 
-        return recommendations;
+        if (navigationService.isNavigating()) {
+            speak("正在更新位置", speechSpeed);
+            updateDisplay("定位更新中...");
+            updateCurrentLocation();
+        } else {
+            startLocation();
+        }
+    }
+
+    private void updateCurrentLocation() {
+        locationService.locate(new LocationService.LocationCallback() {
+            @Override
+            public void onSuccess(Position position) {
+                runOnUiThread(() -> {
+                    currentPosition = position;
+                    if (navigationService.isNavigating()) {
+                        navigationService.setCurrentPosition(position);
+                    }
+                    speak("当前位置：" + position.getLabel(), speechSpeed);
+                    updateDisplay("当前位置：" + position.getLabel());
+                });
+            }
+            @Override
+            public void onFailure(String error) {
+                runOnUiThread(() -> speak("定位更新失败", speechSpeed));
+            }
+        });
+    }
+
+    private void onLongPressDetected() {
+        vibrate(200);
+
+        if (navigationService.isNavigating()) {
+            // 长按：停止导航
+            navigationService.stopNavigation();
+            hasDestination = false;
+            destinationName = "";
+            speak("导航已停止", speechSpeed);
+            updateDisplay("导航已停止");
+        } else {
+            // 长按：开始导航到目的地（如果有）
+            if (hasDestination && currentPosition != null) {
+                speak("开始导航到" + destinationName, speechSpeed);
+                startNavigation(destinationName);
+            } else if (!hasDestination) {
+                // 没有目的地，播报当前位置信息
+                if (currentPosition != null) {
+                    announceCurrentEnvironment();
+                } else {
+                    speak("请先定位或设置目的地", speechSpeed);
+                }
+            } else {
+                // 有目的地但没有定位
+                speak("正在为您定位", speechSpeed);
+                startLocation();
+            }
+        }
+    }
+
+    private void announceCurrentEnvironment() {
+        if (currentPosition == null) return;
+        String msg = "当前在" + currentPosition.getLabel() + "。" + navigationService.getCurrentDirectionInfo();
+        speak(msg, speechSpeed);
+        updateDisplay("当前：" + currentPosition.getLabel());
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            announceNearbyPOIs(currentPosition);
+            if (!hasDestination) {
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    List<String> recs = pathStorage.recommendDestinations(currentPosition.getLabel(), 3);
+                    speak(!recs.isEmpty() ? "推荐目的地：" + String.join("、", recs) : "请说出目的地", speechSpeed);
+                }, 3000);
+            }
+        }, 2000);
+    }
+
+    private void setupSettingsGestures() {
+        gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onFling(MotionEvent e1, MotionEvent e2, float vX, float vY) {
+                if (!isInSettingsMode) return false;
+                float dX = e2.getX() - e1.getX();
+                float dY = e2.getY() - e1.getY();
+                if (Math.abs(dX) > Math.abs(dY)) {
+                    if (Math.abs(dX) > 100) { switchLanguage(); return true; }
+                } else {
+                    if (Math.abs(dY) > 100) { adjustSpeed(dY < 0 ? SPEED_STEP : -SPEED_STEP); return true; }
+                }
+                return false;
+            }
+            @Override public boolean onDoubleTap(MotionEvent e) { if (isInSettingsMode) { exitSettingsMode(); return true; } return false; }
+            @Override public boolean onSingleTapConfirmed(MotionEvent e) { if (isInSettingsMode) { switchPace(); return true; } return false; }
+        });
+        settingsFullscreen.setOnTouchListener((v, event) -> { gestureDetector.onTouchEvent(event); return true; });
+    }
+
+    private void startLocation() {
+        speak("正在定位", speechSpeed);
+        vibrate(100);
+        updateDisplay("定位中...");
+        locationService.locate(new LocationService.LocationCallback() {
+            @Override
+            public void onSuccess(Position position) {
+                runOnUiThread(() -> {
+                    currentPosition = position;
+                    isLocated = true;
+                    navigationService.setCurrentPosition(position);
+                    speak("定位成功，当前在" + position.getLabel(), speechSpeed);
+                    vibrate(200);
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        announceNearbyPOIs(position);
+                        if (hasDestination) new Handler(Looper.getMainLooper()).postDelayed(() -> speak("目的地" + destinationName + "，点击开始导航", speechSpeed), 2000);
+                    }, 2000);
+                });
+            }
+            @Override
+            public void onFailure(String e) {
+                runOnUiThread(() -> {
+                    isLocated = false;
+                    speak("WiFi定位失败，请说我在加位置名称手动设置，例如我在门口", speechSpeed);
+                    updateDisplay("定位失败 | 说\"我在XX\"设置位置");
+                });
+            }
+        });
+    }
+
+    private void announceNearbyPOIs(Position position) {
+        List<PathEntity> allPaths = PathParser.getAllPaths();
+        List<String> nearby = new ArrayList<>();
+        for (PathEntity path : allPaths) {
+            if (path.getStartLabel_cn().equals(position.getLabel())) nearby.add(path.getEndLabel_cn());
+        }
+        if (!nearby.isEmpty()) speak("附近有：" + String.join("、", nearby.subList(0, Math.min(3, nearby.size()))), speechSpeed);
+    }
+
+    private void startNavigation(String target) {
+        if (currentPosition == null) {
+            speak("请先定位", speechSpeed);
+            updateDisplay("请先定位");
+            return;
+        }
+
+        destinationName = target;
+        hasDestination = true;
+
+        // 检查目标位置是否存在
+        Position targetPosition = findPositionByName(target);
+        if (targetPosition == null) {
+            speak("未找到目的地：" + target, speechSpeed);
+            updateDisplay("目的地不存在：" + target);
+            hasDestination = false;
+            destinationName = "";
+            return;
+        }
+
+        navigationService.setCurrentPosition(currentPosition);
+        navigationService.setTarget(target);
+        navigationService.setNavigationConfig(navigationPace, speechSpeed, currentLanguage.locale);
+
+        List<PathEntity> path = navigationService.calculatePath();
+        if (path == null || path.isEmpty()) {
+            speak("未找到路径到" + target, speechSpeed);
+            hasDestination = false;
+            destinationName = "";
+            return;
+        }
+
+        speak("开始导航到" + target + "，预计" + path.size() + "个步骤", speechSpeed);
+        updateDisplay("导航中 → " + target);
+        navigationService.startContinuousNavigation();
+    }
+
+
+    private void startStatusUpdater() {
+        statusUpdateRunnable = new Runnable() {
+            @Override public void run() { updateNavigationStatus(); statusUpdateHandler.postDelayed(this, 2000); }
+        };
+        statusUpdateHandler.post(statusUpdateRunnable);
+    }
+
+    private void updateNavigationStatus() {
+        if (isInSettingsMode) return;
+
+        String status;
+        if (navigationService.isNavigating()) {
+            status = "导航中 → " + destinationName;
+            if (currentPosition != null) {
+                status += " | 当前：" + currentPosition.getLabel();
+            }
+        } else if (hasDestination) {
+            status = "已设目的地：" + destinationName;
+            if (currentPosition != null) {
+                status += " | 长按开始导航";
+            } else {
+                status += " | 请先定位";
+            }
+        } else {
+            status = currentPosition != null ?
+                    "当前位置：" + currentPosition.getLabel() + " | 长按查看环境" :
+                    "单击定位 | 长按设置目的地";
+        }
+
+        updateDisplay(status);
+    }
+
+    private void enterSettingsMode() {
+        isInSettingsMode = true;
+        settingsFullscreen.setVisibility(View.VISIBLE);
+        speak("进入设置。上下滑动调语速，左右滑动切换语言，单击切换间隔，双击退出", speechSpeed);
+        updateSettingsDisplay();
+    }
+
+    private void exitSettingsMode() {
+        isInSettingsMode = false;
+        settingsFullscreen.setVisibility(View.GONE);
+        speak(String.format("设置完成。语速%.1f倍，%s", speechSpeed, currentLanguage.displayName), speechSpeed);
+    }
+
+    private void updateSettingsDisplay() {
+        tvSpeedDisplay.setText(String.format("语速：%.1f倍", speechSpeed));
+        tvLanguageDisplay.setText("语言：" + currentLanguage.displayName);
+        tvPaceDisplay.setText(String.format("间隔：%d秒", navigationPace / 1000));
+    }
+
+    private void adjustSpeed(float delta) {
+        speechSpeed = Math.max(SPEED_MIN, Math.min(SPEED_MAX, speechSpeed + delta));
+        if (ttsService != null && ttsService.isReady()) {
+            ttsService.setSpeed(speechSpeed);
+        }
+        updateSettingsDisplay();
+        speak(String.format("语速%.1f倍", speechSpeed), speechSpeed);
+    }
+
+    private void switchLanguage() {
+        VoskSpeechRecognizerService.Language[] langs = VoskSpeechRecognizerService.Language.values();
+        int idx = 0;
+        for (int i = 0; i < langs.length; i++) { if (langs[i] == currentLanguage) { idx = i; break; } }
+        switchToLanguage(langs[(idx + 1) % langs.length]);
+    }
+
+    private boolean isSwitchingLanguage = false;
+
+    private void switchToLanguage(VoskSpeechRecognizerService.Language language) {
+        if (isSwitchingLanguage) {
+            Log.d(TAG, "正在切换语言中，跳过重复调用");
+            return;
+        }
+
+        if (currentLanguage == language) {
+            Log.d(TAG, "已经是" + language.displayName + "，无需切换");
+            return;
+        }
+
+        isSwitchingLanguage = true;
+        currentLanguage = language;
+
+//        // 1. 先更新TTS（不依赖Vosk）
+//        if (ttsService != null && ttsService.isReady()) {
+//            ttsService.setLanguage(language.locale);
+//            ttsService.setSpeed(speechSpeed);
+//        }
+        // 1. 先更新TTS（不依赖Vosk）
+        if (ttsService != null && ttsService.isReady()) {
+            ttsService.setLanguage(language.locale);
+        }
+
+        // 2. Vosk单独切换，失败不影响其他
+        try {
+            if (serviceFactory != null) {
+                serviceFactory.switchLanguage(language);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Vosk切换失败，但不影响UI: " + e.getMessage());
+        }
+
+        // 3. 先播报再recreate（否则recreate后speak会丢失）
+        String msg = "已切换到" + language.displayName;
+        if (ttsService != null && ttsService.isReady()) {
+            ttsService.speak(msg, speechSpeed);
+        }
+
+        // 4. 延迟更新UI，等播报完成
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            updateAppLocale(language.locale);
+            isSwitchingLanguage = false;
+        }, 1500);
+    }
+
+    private void updateAppLocale(Locale locale) {
+        getSharedPreferences("UserSettings", MODE_PRIVATE)
+                .edit()
+                .putString("app_locale", locale.toLanguageTag())
+                .putBoolean("in_settings_mode", isInSettingsMode)
+                .apply();
+
+        android.content.res.Resources res = getResources();
+        android.content.res.Configuration config = res.getConfiguration();
+        config.setLocale(locale);
+        res.updateConfiguration(config, res.getDisplayMetrics());
+
+        recreate();
+    }
+
+    private void applyLocaleWithoutRecreate(Locale locale) {
+        android.content.res.Resources res = getResources();
+        android.content.res.Configuration config = res.getConfiguration();
+        config.setLocale(locale);
+        res.updateConfiguration(config, res.getDisplayMetrics());
+    }
+
+    private void switchPace() {
+        paceIndex = (paceIndex + 1) % PACE_OPTIONS.length;
+        navigationPace = PACE_OPTIONS[paceIndex];
+        updateSettingsDisplay();
+        speak(String.format("间隔%d秒", navigationPace / 1000), speechSpeed);
+    }
+
+    private void updateDisplay(String text) { if (tvTopDisplay != null) tvTopDisplay.setText(text); }
+
+    /**
+     * 清理语音识别结果，去除文字间的间隔
+     * 去除首尾空格、连续空格、空格换行等
+     */
+    private String cleanRecognizedText(String text) {
+        if (text == null) return "";
+        // 去除首尾空格
+        String cleaned = text.trim();
+        // 去除连续多个空格，替换为单个空格
+        cleaned = cleaned.replaceAll("\\s+", " ");
+        // 去除换行符等空白字符
+        cleaned = cleaned.replaceAll("[\\n\\r\\t]", " ");
+        // 去除特殊空格字符（全角空格等）
+        cleaned = cleaned.replaceAll("[　]+", "").replaceAll("[ \\u00A0\\u1680\\u180E\\u2000-\\u200B\\u202F\\u205F\\u3000\\uFEFF]+", " ");
+        return cleaned.trim();
+    }
+
+    private void speak(String text, float speed) {
+        lastSpokenText = text;
+        // 不再覆盖tv_top_display的显示，让其保持显示Vosk识别的内容
+
+        // 检查音频状态
+        android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
+        int volume = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
+        int maxVol = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
+        Log.d(TAG, "TTS尝试播报: " + text + ", 音量=" + volume + "/" + maxVol + ", isReady=" + (ttsService != null ? ttsService.isReady() : "null"));
+
+        if (volume == 0) {
+            Log.w(TAG, "警告: 媒体音量为0!");
+        }
+
+        if (ttsService != null && ttsService.isReady()) {
+            ttsService.speak(text, speed);
+        } else {
+            Log.e(TAG, "TTS未就绪! 尝试重新初始化");
+            if (ttsService != null) ttsService.forceReinit();
+        }
+    }
+
+    private void vibrate(long ms) { if (vibrator != null) vibrator.vibrate(ms); }
+
+    /**
+     * 启动tv_top_display的绿色呼吸灯光晕效果
+     */
+    private void startGlowEffect() {
+        if (viewGlowOverlay == null) return;
+        viewGlowOverlay.startGlow();
     }
 
     /**
-     * 获取统计信息
+     * 停止tv_top_display的绿��呼吸灯光晕效果
      */
-    public String getStatistics() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("=== 路径存储统计 ===\n");
-        sb.append("收藏位置: ").append(favoriteLocations.size()).append("个\n");
-        sb.append("历史路径: ").append(recentRoutes.size()).append("条\n");
-        sb.append("常用起点: ").append(commonStartPoints.size()).append("个\n");
+    private void stopGlowEffect() {
+        if (viewGlowOverlay == null) return;
+        viewGlowOverlay.stopGlow();
+    }
 
-        if (homeLocation != null) {
-            sb.append("家: ").append(homeLocation).append("\n");
-        }
-
-        if (workLocation != null) {
-            sb.append("公司: ").append(workLocation).append("\n");
-        }
-
-        // 最常用路径
-        List<RouteRecord> topRoutes = getMostUsedRoutes(3);
-        if (!topRoutes.isEmpty()) {
-            sb.append("\n最常用路径:\n");
-            for (int i = 0; i < topRoutes.size(); i++) {
-                sb.append(String.format("%d. %s\n", i + 1, topRoutes.get(i)));
+    /**
+     * 处理语音按钮按下事件（开始录音）
+     */
+    private void handleVoiceButtonPress() {
+        // 检查录音权限
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                speak("需要录音权限", speechSpeed);
+                requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, 100);
+                isVoiceButtonPressed = false;
+                return;
             }
         }
 
-        return sb.toString();
+        if (voskService != null && voskService.isInitialized()) {
+            // 震动反馈
+            vibrate(80);
+
+            // 按钮视觉反馈（缩放效果）
+            btnVoiceAssistant.setScaleX(0.95f);
+            btnVoiceAssistant.setScaleY(0.95f);
+
+            // 手动设置按下时的背景 - 使用多种方法确保生效
+            Log.d(TAG, "设置按钮背景为鲜艳绿色（按住效果）");
+            btnVoiceAssistant.post(() -> {
+                // 清除backgroundTint（Material Design覆盖）
+                btnVoiceAssistant.setBackgroundTintList(null);
+                // 设置背景资源
+                btnVoiceAssistant.setBackgroundResource(R.drawable.button_voice_pressed);
+                Log.d(TAG, "背景已设置，tint已清除");
+            });
+
+            // 开始录音
+            isVoiceRecording = true;
+            voskService.startListening();
+            updateDisplay("正在聆听...");
+
+            // 启动绿色光晕闪烁效果，表示正在录音
+            startGlowEffect();
+
+            Log.d(TAG, "语音按钮按下，开始录音");
+        } else {
+            // 语音识别未就绪，使用文本输入fallback
+            String input = etVoiceSimulate.getText().toString().trim();
+            if (!input.isEmpty()) {
+                processVoiceCommand(input);
+                etVoiceSimulate.setText("");
+            } else {
+                speak("语音识别尚未就绪，请在输入框输入指令", speechSpeed);
+            }
+            isVoiceButtonPressed = false;
+        }
     }
 
     /**
-     * 清除历史记录
+     * 处理语音按钮释放事件（停止录音并处理结果）
      */
-    public void clearHistory() {
-        recentRoutes.clear();
-        commonStartPoints.clear();
-        saveRecentRoutes();
-        saveCommonStartPoints();
-        Log.d(TAG, "历史记录已清除");
+    private void handleVoiceButtonRelease() {
+        // 恢复按钮缩放
+        btnVoiceAssistant.setScaleX(1.0f);
+        btnVoiceAssistant.setScaleY(1.0f);
+
+        // 恢复默认背景
+        Log.d(TAG, "恢复按钮背景");
+        btnVoiceAssistant.post(() -> {
+            btnVoiceAssistant.setBackgroundTintList(null);
+            btnVoiceAssistant.setBackgroundResource(R.drawable.button_secondary);
+        });
+
+        if (isVoiceRecording) {
+            isVoiceRecording = false;
+
+            // 停止录音
+            if (voskService != null) {
+                voskService.stopListening();
+            }
+
+            // 停止绿色光晕效果
+            stopGlowEffect();
+
+            // 震动反馈
+            vibrate(50);
+
+            // 显示处理状态
+            updateDisplay("识别中...");
+
+            Log.d(TAG, "语音按钮释放，停止录音，等待识别结果");
+
+            // 识别结果会在voskServiceListener的onResult回调中处理
+        }
     }
 
-    /**
-     * 清除所有数据
-     */
-    public void clearAll() {
-        favoriteLocations.clear();
-        recentRoutes.clear();
-        commonStartPoints.clear();
-        homeLocation = null;
-        workLocation = null;
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // 停止绿色光晕闪烁效果
+        stopGlowEffect();
+        statusUpdateHandler.removeCallbacksAndMessages(null);
+        longPressHandler.removeCallbacksAndMessages(null);
 
-        prefs.edit().clear().apply();
-        Log.d(TAG, "所有数据已清除");
-    }
+        if (navigationService != null) {
+            navigationService.stopNavigation();
+        }
 
-    // ========== 保存方法 ==========
-
-    private void saveFavoriteLocations() {
-        String json = gson.toJson(favoriteLocations);
-        prefs.edit().putString(KEY_FAVORITE_LOCATIONS, json).apply();
-    }
-
-    private void saveRecentRoutes() {
-        String json = gson.toJson(recentRoutes);
-        prefs.edit().putString(KEY_RECENT_ROUTES, json).apply();
-    }
-
-    private void saveCommonStartPoints() {
-        String json = gson.toJson(commonStartPoints);
-        prefs.edit().putString(KEY_COMMON_START_POINTS, json).apply();
+        // serviceFactory.shutdown() 内部会处理TTS，但可能已dead，用try包裹
+        try {
+            if (serviceFactory != null) {
+                serviceFactory.shutdown();
+            }
+        } catch (Exception e) {
+            Log.w(TAG, "关闭服务异常: " + e.getMessage());
+        }
     }
 }
