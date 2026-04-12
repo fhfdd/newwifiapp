@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <!-- 圆角 -->
+    <corners android:radius="16dp"/>
+    <!-- 绿色填充（半透明） -->
+    <solid android:color="#FBF8CC"/>
+    <!-- 绿色发光边框（较亮） -->
+<!--    <stroke-->
+<!--        android:width="6dp"-->
+<!--        android:color="#AA00FF00"/>-->
+    <!-- 添加渐变光晕效果 -->
+    <padding
+        android:left="6dp"
+        android:top="6dp"
+        android:right="6dp"
+        android:bottom="6dp"/>
+</shape>

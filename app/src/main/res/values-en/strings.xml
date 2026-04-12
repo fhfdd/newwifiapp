@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Basic Info -->
+    <string name="app_name">Indoor Navigation Assistant</string>
+    <string name="welcome_hint">Welcome! Tap "Settings" to enter settings mode</string>
+
+    <!-- Input/Button -->
+    <string name="voice_command_hint">Enter voice command (e.g., Locate, Navigate to toilet)</string>
+    <string name="locate_nav">Locate/Nav</string>
+    <string name="locate_nav_desc">Locate current position first, then navigate</string>
+    <string name="voice_assistant">Voice Assistant</string>
+    <string name="voice_assistant_desc">Activate voice input</string>
+    <string name="settings">Settings</string>
+    <string name="settings_desc">Enter settings mode</string>
+    <string name="help">Help</string>
+    <string name="emergency_desc">Emergency Help</string>
+
+    <!-- Settings Mode -->
+    <string name="settings_mode">Settings Mode</string>
+    <string name="speed_hint">Swipe up to speed up | Swipe down to slow down (Current: %.1fx)</string>
+    <string name="language_hint">Tap panel to switch language (Current: %s)</string>
+    <string name="exit_hint">Double tap anywhere to exit settings mode</string>
+    <string name="enter_settings">Entered settings mode</string>
+    <string name="exit_settings">Exited settings mode</string>
+    <string name="speed_adjusted">Voice speed adjusted to: %.1fx</string>
+    <string name="language_switched">Language switched to: %s</string>
+    <string name="settings_mode_hint">Currently in settings mode. Double tap to exit first.</string>
+
+    <!-- Function Hints -->
+    <string name="tap_to_replay">Tap to replay voice</string>
+    <string name="emergency_assistance">Emergency assistance requested! Please stay where you are.</string>
+    <string name="nearby_locations">Nearby locations: Desk (5m), Toilet (10m)</string>
+    <string name="command_not_recognized">Command not recognized. Try "Locate" or "Navigate to toilet".</string>
+    <string name="welcome">Welcome to the Blind Indoor Navigation System</string>
+    <string name="current_location">Current Location</string>
+    <string name="emergency">Emergency Help / SOS</string>
+    <string name="locating">Locating...</string>
+    <string name="distance_unit_format">Distance unit: %s</string>
+    <string name="unit_steps">steps</string>
+    <string name="unit_meters">meters</string>
+    <string name="unit_steps_eng">steps</string>
+    <string name="unit_meters_eng">meters</string>
+    <string name="tts_distance_unit">Distance unit:</string>
+    <string name="tts_distance_unit_eng">Distance unit:</string>
+    <string name="speech_rate">Speech Rate / Speed</string>
+    <string name="speech_rate_format">Speech rate: %.1f×</string>
+    <string name="times">× (times)</string>
+    <string name="language">Language</string>
+    <string name="language_format">Language: %s</string>
+    <string name="pace_format">Announcement interval: %d seconds</string>
+
+    <!-- Navigation Related -->
+    <string name="navigating_to">Navigating to</string>
+    <string name="please_say_destination">Please say the destination</string>
+    <string name="locating_to">Locating to</string>
+    <string name="locating_at">Locating at</string>
+    <string name="located_at">Located at</string>
+    <string name="current_location_prefix">Current location: </string>
+    <string name="location_not_found">Location not found</string>
+    <string name="location_cached_wifi">, cached, trying WiFi location</string>
+    <string name="location_not_found_cached">Location "%s" not found, cached, locating…</string>
+    <string name="navigation_stopped">Navigation stopped</string>
+    <string name="you_are_at">You are at</string>
+    <string name="location_unknown">Location unknown</string>
+    <string name="navigation_in_progress">Navigation in progress, please continue</string>
+    <string name="no_navigation_in_progress">No navigation in progress</string>
+    <string name="please_set_destination_and_locate">Please set destination and locate first</string>
+    <string name="please_locate_or_set_destination">Please locate or set destination first</string>
+    <string name="arrived_at">Arrived at: </string>
+    <string name="off_route">Off route by %.1f meters</string>
+    <string name="start_navigation_to">Starting navigation to</string>
+    <string name="estimated_steps">, estimated</string>
+    <string name="steps_count">steps</string>
+    <string name="destination_set">Destination set: </string>
+    <string name="long_press_to_navigate"> | Long press to start navigation</string>
+    <string name="please_locate_first">Please locate first</string>
+    <string name="current_location_info">Current location: %s | Long press to view surroundings</string>
+    <string name="tap_to_locate">Tap to locate | Long press to set destination</string>
+
+    <!-- Location Related -->
+    <string name="updating_location">Updating location</string>
+    <string name="updating_location_progress">Updating location...</string>
+    <string name="location_update_failed">Location update failed</string>
+    <string name="locating_for_you">Locating for you</string>
+    <string name="currently_at">Currently at</string>
+    <string name="period">.</string>
+    <string name="currently">Current: </string>
+    <string name="recommended_destinations">Recommended destinations: </string>
+    <string name="locating_progress">Locating...</string>
+    <string name="location_success">Location successful, currently at</string>
+    <string name="destination_navigation_hint">Destination %s, tap to start navigation</string>
+    <string name="wifi_location_failed">WiFi location failed, please say "I am at [location]" to set manually, e.g., "I am at the entrance"</string>
+    <string name="location_failed_hint">Location failed | Say "I am at XX" to set location</string>
+    <string name="nearby_locations_prefix">Nearby: </string>
+    <string name="destination_not_found">Destination not found: </string>
+    <string name="destination_does_not_exist">Destination does not exist: </string>
+    <string name="no_path_found">No path found to</string>
+
+    <!-- Settings Related -->
+    <string name="please_exit_settings_mode_first">Please exit settings mode first</string>
+    <string name="enter_settings_hint">Entering settings. Swipe up/down to adjust speed, left/right to switch language, single tap to change interval, double tap to exit</string>
+    <string name="settings_completed">Settings completed. Speech rate %.1fx, %s</string>
+    <string name="speed_format">Speech rate: %.1fx</string>
+    <string name="language_prefix">Language: </string>
+    <string name="pace_display_format">Interval: %d seconds</string>
+    <string name="switched_to_language">Switched to</string>
+
+    <!-- Other -->
+    <string name="use_stairs_or_elevator_up">Please use stairs or elevator to go up</string>
+    <string name="use_stairs_or_elevator_down">Please use stairs or elevator to go down</string>
+    <string name="not_in_settings_mode">Not in settings mode</string>
+    <string name="not_recognized">Not recognized: </string>
+    <string name="recognition_failed">Recognition failed, please try again</string>
+    <string name="service_status">Service status: </string>
+    <string name="tts_ready">TTS ready </string>
+    <string name="recognition">Recognition: </string>
+    <string name="navigation_started">Navigation started: %s → %s</string>
+    <string name="tts_not_ready">TTS not ready </string>
+    <string name="vosk_ready">Vosk ready </string>
+    <string name="vosk_not_ready">Vosk not ready </string>
+    <string name="voice_system_initialized">Voice system initialized</string>
+    <string name="navigating">Navigating → </string>
+    <string name="pace_adjusted">Interval %d seconds</string>
+    <string name="need_record_permission">Need record permission</string>
+    <string name="listening">Listening...</string>
+    <string name="voice_recognition_not_ready">Voice recognition not ready, please enter command in input box</string>
+    <string name="recognizing">Recognizing...</string>
+    <string name="long_press_to_view_environment">Long press to view environment</string>
+</resources>

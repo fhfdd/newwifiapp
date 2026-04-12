@@ -1,0 +1,34 @@
+2026-03-18 00:17:31.417  4862-4978  VoskServiceDebug        com.example.indoornavblind           D  ✅ 模型加载成功: 粤語
+2026-03-18 00:17:31.564  4862-7192  ProfileInstaller        com.example.indoornavblind           D  Installing profile for com.example.indoornavblind
+2026-03-18 00:17:32.259  4862-4939  RenderInspector         com.example.indoornavblind           W  DequeueBuffer time out on com.example.indoornavblind/com.example.indoornavblind.ui.activities.MainActivity, count=1, avg=24 ms, max=24 ms.
+2026-03-18 00:17:33.344  4862-4939  RenderInspector         com.example.indoornavblind           W  DequeueBuffer time out on com.example.indoornavblind/com.example.indoornavblind.ui.activities.MainActivity, count=1, avg=17 ms, max=17 ms.
+2026-03-18 00:17:33.411  4862-4887  TTSUtil                 com.example.indoornavblind           D  onDone: ab2766bd-9c47-4ab7-b17b-5573ff8fff10
+2026-03-18 00:17:33.411  4862-4887  TextToSpeechService     com.example.indoornavblind           D  播报完成
+2026-03-18 00:17:33.411  4862-4887  MainActivity            com.example.indoornavblind           D  TTS播报完成
+2026-03-18 00:17:33.488  4862-4862  TextToSpeechService     com.example.indoornavblind           D  调用TTSUtil.speak(): text=语音系统初始化完成, speed=1.0, priority=20
+2026-03-18 00:17:33.525  4862-4862  TTSUtil                 com.example.indoornavblind           D  开始播报: 语音系统初始化完成
+2026-03-18 00:17:33.525  4862-4862  TextToSpeechService     com.example.indoornavblind           D  TTS播报请求成��: 语音系统初始化完成 (优先级: 20, 语速: 1.0)
+2026-03-18 00:17:33.550  4862-4887  TTSUtil                 com.example.indoornavblind           D  onStart: 95cc46f7-21a8-4b03-b972-b49842808a1e
+2026-03-18 00:17:33.550  4862-4887  TextToSpeechService     com.example.indoornavblind           D  开始播报: 95cc46f7-21a8-4b03-b972-b49842808a1e (优先级: 20)
+2026-03-18 00:17:33.550  4862-4887  MainActivity            com.example.indoornavblind           D  TTS开始播报
+2026-03-18 00:17:33.598  4862-4917  .indoornavblin          com.example.indoornavblind           I  ProcessProfilingInfo new_methods=2202 is saved saved_to_disk=1 resolve_classes_delay=8000
+2026-03-18 00:17:36.045  4862-6521  TTSUtil                 com.example.indoornavblind           D  onDone: 95cc46f7-21a8-4b03-b972-b49842808a1e
+2026-03-18 00:17:36.045  4862-6521  TextToSpeechService     com.example.indoornavblind           D  播报完成
+2026-03-18 00:17:36.045  4862-6521  MainActivity            com.example.indoornavblind           D  TTS播报完成
+2026-03-18 00:17:36.054  4862-4862  TextToSpeechService     com.example.indoornavblind           D  队列为空
+2026-03-18 00:17:40.741  4862-4862  MainActivity            com.example.indoornavblind           D  设置按钮背景为绿色 - button_voice_pressed
+2026-03-18 00:17:40.751  4862-8162  AudioRecord             com.example.indoornavblind           D  start(2794): sync event 0 trigger session 0, mSessionID=18041
+2026-03-18 00:17:40.766  4862-4862  MainActivity            com.example.indoornavblind           D  语音按钮按下，开始录音
+2026-03-18 00:17:40.775  4862-4862  MainActivity            com.example.indoornavblind           D  背景资源已设置: 非null
+2026-03-18 00:17:40.798  4862-8162  AudioService            com.example.indoornavblind           D  broadcastRecorderState:com.example.indoornavblind
+2026-03-18 00:17:42.888  4862-4862  MainActivity            com.example.indoornavblind           D  恢复按钮背景 - button_secondary
+2026-03-18 00:17:43.532  4862-8162  AudioRecord             com.example.indoornavblind           D  stop mSessionID=18041
+2026-03-18 00:17:43.532  4862-8162  AudioRecord             com.example.indoornavblind           D  stop(2794): mActive:1
+2026-03-18 00:17:43.652  4862-8162  AudioService            com.example.indoornavblind           D  broadcastRecorderState:com.example.indoornavblind
+2026-03-18 00:17:43.980  4862-4862  MainActivity            com.example.indoornavblind           D  语音按钮释放，停止录音，等待识别结果
+2026-03-18 00:17:43.981  4862-4862  Choreographer           com.example.indoornavblind           I  Skipped 65 frames!  The application may be doing too much work on its main thread.
+2026-03-18 00:17:43.984  4862-4862  Looper                  com.example.indoornavblind           W  PerfMonitor doFrame : time=3ms vsyncFrame=37900296 latency=1097ms procState=2
+2026-03-18 00:17:43.986  4862-4939  OpenGLRenderer          com.example.indoornavblind           I  Davey! duration=1101ms; Flags=0, IntendedVsync=3236585753877526, Vsync=3236586837210816, OldestInputEvent=9223372036854775807, NewestInputEvent=0, HandleInputStart=3236586850309870, AnimationStart=3236586850342213, PerformTraversalsStart=3236586850356849, DrawStart=3236586851643984, SyncQueued=3236586852617370, SyncStart=3236586853102318, IssueDrawCommandsStart=3236586853253620, SwapBuffers=3236586854473828, FrameCompleted=3236586855498984, DequeueBufferDuration=192396, QueueBufferDuration=298489, GpuCompleted=3236583769364975, 
+2026-03-18 00:17:43.989  4862-4862  VoskServiceDebug        com.example.indoornavblind           D  Result1: {
+                                                                                                      "text" : ""
+                                                                                                    }

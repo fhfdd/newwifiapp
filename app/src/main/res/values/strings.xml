@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 基础信息 -->
+    <string name="app_name">盲人室内导航</string>
+    <string name="welcome_hint">欢迎！点击"设置"进入设置模式</string>
+
+    <!-- 输入框/按钮相关 -->
+    <string name="voice_command_hint">输入语音指令（例如：定位、导航到厕所）</string>
+    <string name="locate_nav">定位/导航</string>
+    <string name="locate_nav_desc">先定位当前位置，再导航</string>
+    <string name="voice_assistant">语音助手</string>
+    <string name="voice_assistant_desc">激活语音输入</string>
+    <string name="settings">设置</string>
+    <string name="settings_desc">进入设置模式</string>
+    <string name="help">求助 Tel</string>
+    <string name="emergency_desc">紧急求助</string>
+
+    <!-- 设置模式相关 -->
+    <string name="settings_mode">设置模式</string>
+    <string name="speed_hint">上滑加快语速 | 下滑减慢语速（当前：%.1f倍）</string>
+    <string name="language_hint">点击面板切换语言（当前：%s）</string>
+    <string name="exit_hint">双击屏幕任何位置退出设置模式</string>
+    <string name="enter_settings">已进入设置模式</string>
+    <string name="exit_settings">已退出设置模式</string>
+    <string name="speed_adjusted">语速已调整为：%.1f倍</string>
+    <string name="language_switched">语言已切换为：%s</string>
+    <string name="settings_mode_hint">当前处于设置模式，请先双击退出</string>
+
+    <!-- 功能提示 -->
+    <string name="tap_to_replay">点击重播语音</string>
+    <string name="emergency_assistance">紧急求助已请求！请保持当前位置</string>
+    <string name="nearby_locations">附近位置：桌子（5米）、厕所（10米）</string>
+    <string name="command_not_recognized">无法识别指令，请尝试"定位""导航到厕所"等指令</string>
+
+    <!-- 旧的保留 -->
+    <string name="welcome">欢迎使用盲人室内导航系统</string>
+    <string name="current_location">当前位置</string>
+    <string name="emergency">紧急求助</string>
+    <string name="locating">正在定位...</string>
+
+
+    <string name="distance_unit_format">距离单位：%s</string>
+    <string name="unit_steps">步数</string>
+    <string name="unit_meters">米</string>
+    <string name="unit_steps_eng">steps</string>
+    <string name="unit_meters_eng">meters</string>
+
+    <string name="tts_distance_unit">距离单位：</string>
+    <string name="tts_distance_unit_eng">Distance unit: </string>
+
+
+    <string name="speech_rate">语速</string>
+    <string name="speech_rate_format">语速：%.1f倍</string>
+    <string name="times">倍</string>
+    <string name="language">语言</string>
+    <string name="language_format">语言：%s</string>
+    <string name="pace_format">播报间隔：%d秒</string>
+
+    <!-- 导航相关 -->
+    <string name="navigating_to">正在导航到</string>
+    <string name="please_say_destination">请说出目的地</string>
+    <string name="locating_to">正在定位到</string>
+    <string name="locating_at">定位到</string>
+    <string name="located_at">已定位到</string>
+    <string name="current_location_prefix">当前位置：</string>
+    <string name="location_not_found">未找到位置</string>
+    <string name="location_cached_wifi">，已缓存，正在尝试WiFi定位</string>
+    <string name="location_not_found_cached">未找到「%s」，已缓存，正在定位…</string>
+    <string name="navigation_stopped">导航已停止</string>
+    <string name="you_are_at">您在</string>
+    <string name="location_unknown">位置未知</string>
+    <string name="navigation_in_progress">导航进行中，请继续前进</string>
+    <string name="no_navigation_in_progress">当前没有进行导航</string>
+    <string name="please_set_destination_and_locate">请先设置目的地并定位</string>
+    <string name="please_locate_or_set_destination">请先定位或设置目的地</string>
+    <string name="arrived_at">已到达：</string>
+    <string name="off_route">偏离路线%.1f米</string>
+    <string name="start_navigation_to">开始导航到</string>
+    <string name="estimated_steps">，预计</string>
+    <string name="steps_count">个步骤</string>
+    <string name="destination_set">已设目的地：</string>
+    <string name="long_press_to_navigate"> | 长按开始导航</string>
+    <string name="please_locate_first">请先定位</string>
+    <string name="current_location_info">当前位置：%s | 长按查看环境</string>
+    <string name="tap_to_locate">单击定位 | 长按设置目的地</string>
+
+    <!-- 定位相关 -->
+    <string name="updating_location">正在更新位置</string>
+    <string name="updating_location_progress">定位更新中...</string>
+    <string name="location_update_failed">定位更新失败</string>
+    <string name="locating_for_you">正在为您定位</string>
+    <string name="currently_at">当前在</string>
+    <string name="period">。</string>
+    <string name="currently">当前：</string>
+    <string name="recommended_destinations">推荐目的地：</string>
+    <string name="locating_progress">定位中...</string>
+    <string name="location_success">定位成功，当前在</string>
+    <string name="destination_navigation_hint">目的地%s，点击开始导航</string>
+    <string name="wifi_location_failed">WiFi定位失败，请说我在加位置名称手动设置，例如我在门口</string>
+    <string name="location_failed_hint">定位失败 | 说"我在XX"设置位置</string>
+    <string name="nearby_locations_prefix">附近有：</string>
+    <string name="destination_not_found">未找到目的地：</string>
+    <string name="destination_does_not_exist">目的地不存在：</string>
+    <string name="no_path_found">未找到路径到</string>
+
+    <!-- 设置相关 -->
+    <string name="please_exit_settings_mode_first">请先退出设置模式</string>
+    <string name="enter_settings_hint">进入设置。上下滑动调语速，左右滑动切换语言，单击切换间隔，双击退出</string>
+    <string name="settings_completed">设置完成。语速%.1f倍，%s</string>
+    <string name="speed_format">语速：%.1f倍</string>
+    <string name="language_prefix">语言：</string>
+    <string name="pace_display_format">间隔：%d秒</string>
+    <string name="switched_to_language">已切换到</string>
+
+    <!-- 其他 -->
+    <string name="use_stairs_or_elevator_up">请使用楼梯或电梯上楼</string>
+    <string name="use_stairs_or_elevator_down">请使用楼梯或电梯下楼</string>
+    <string name="not_in_settings_mode">当前不在设置模式</string>
+    <string name="not_recognized">未识别: </string>
+    <string name="recognition_failed">识别失败，请重试</string>
+    <string name="service_status">服务状态: </string>
+    <string name="tts_ready">TTS就绪 </string>
+    <string name="recognition">识别: </string>
+    <string name="navigation_started">导航开始：%s → %s</string>
+    <string name="tts_not_ready">TTS未就绪 </string>
+    <string name="vosk_ready">Vosk就绪 </string>
+    <string name="vosk_not_ready">Vosk未就绪 </string>
+    <string name="voice_system_initialized">语音系统初始化完成</string>
+    <string name="navigating">导航中 → </string>
+    <string name="pace_adjusted">间隔%d秒</string>
+    <string name="need_record_permission">需要录音权限</string>
+    <string name="listening">正在聆听...</string>
+    <string name="voice_recognition_not_ready">语音识别尚未就绪，请在输入框输入指令</string>
+    <string name="recognizing">识别中...</string>
+    <string name="long_press_to_view_environment">长按查看环境</string>
+</resources>

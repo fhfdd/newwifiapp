@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 基礎資訊 -->
+    <string name="app_name">室內導航助手</string>
+    <string name="welcome_hint">歡迎！點擊「設定」進入設定模式</string>
+
+    <!-- 輸入框/按鈕相關 -->
+    <string name="voice_command_hint">輸入語音指令（例如：定位、導航到廁所）</string>
+    <string name="locate_nav">定位/導航</string>
+    <string name="locate_nav_desc">先定位當前位置，再導航</string>
+    <string name="voice_assistant">語音助手</string>
+    <string name="voice_assistant_desc">激活語音輸入</string>
+    <string name="settings">設定</string>
+    <string name="settings_desc">進入設定模式</string>
+    <string name="help">求助</string>
+    <string name="emergency_desc">緊急求助</string>
+
+    <!-- 設定模式相關 -->
+    <string name="settings_mode">設定模式</string>
+    <string name="speed_hint">上滑加快語速 | 下滑減慢語速（當前：%.1f倍）</string>
+    <string name="language_hint">點擊面板切換語言（當前：%s）</string>
+    <string name="exit_hint">雙擊螢幕任何位置退出設定模式</string>
+    <string name="enter_settings">已進入設定模式</string>
+    <string name="exit_settings">已退出設定模式</string>
+    <string name="speed_adjusted">語速已調整為：%.1f倍</string>
+    <string name="language_switched">語言已切換為：%s</string>
+    <string name="settings_mode_hint">當前處於設定模式，請先雙擊退出</string>
+
+    <!-- 功能提示 -->
+    <string name="tap_to_replay">點擊重播語音</string>
+    <string name="emergency_assistance">緊急求助已請求！請保持當前位置</string>
+    <string name="nearby_locations">附近位置：桌子（5米）、廁所（10米）</string>
+    <string name="command_not_recognized">無法識別指令，請嘗試「定位」「導航到廁所」等指令</string>
+    <string name="welcome">歡迎使用盲人室內導航系統</string>
+    <string name="current_location">目前位置</string>
+    <string name="emergency">緊急求助</string>
+    <string name="locating">正在定位...</string>
+    <string name="navigating">導航中...</string>
+    <string name="distance_unit_format">距離單位：%s</string>
+    <string name="unit_steps">步數</string>
+    <string name="unit_meters">米</string>
+    <string name="tts_distance_unit">距離單位：</string>
+    <string name="speech_rate">語速</string>
+    <string name="speech_rate_format">語速：%.1f倍</string>
+    <string name="times">倍</string>
+    <string name="language">語言</string>
+    <string name="language_format">語言：%s</string>
+    <string name="pace_format">播報間隔：%d秒</string>
+
+    <!-- 導航相關 -->
+    <string name="navigating_to">正在導航到</string>
+    <string name="please_say_destination">請說出目的地</string>
+    <string name="locating_to">正在定位到</string>
+    <string name="locating_at">定位到</string>
+    <string name="located_at">已定位到</string>
+    <string name="current_location_prefix">當前位置：</string>
+    <string name="location_not_found">未找到位置</string>
+    <string name="location_cached_wifi">，已緩存，正在嘗試WiFi定位</string>
+    <string name="location_not_found_cached">未找到「%s」，已緩存，正在定位…</string>
+    <string name="navigation_stopped">導航已停止</string>
+    <string name="you_are_at">您在</string>
+    <string name="location_unknown">位置未知</string>
+    <string name="navigation_in_progress">導航進行中，請繼續前進</string>
+    <string name="no_navigation_in_progress">當前沒有進行導航</string>
+    <string name="please_set_destination_and_locate">請先設定目的地並定位</string>
+    <string name="please_locate_or_set_destination">請先定位或設定目的地</string>
+    <string name="navigation_started">導航開始：%s → %s</string>
+    <string name="arrived_at">已到達：</string>
+    <string name="off_route">偏離路線%.1f米</string>
+    <string name="start_navigation_to">開始導航到</string>
+    <string name="estimated_steps">，預計</string>
+    <string name="steps_count">個步驟</string>
+    <string name="destination_set">已設目的地：</string>
+    <string name="long_press_to_navigate"> | 長按開始導航</string>
+    <string name="please_locate_first">請先定位</string>
+    <string name="current_location_info">當前位置：%s | 長按查看環境</string>
+    <string name="tap_to_locate">單擊定位 | 長按設定目的地</string>
+
+    <!-- 定位相關 -->
+    <string name="updating_location">正在更新位置</string>
+    <string name="updating_location_progress">定位更新中...</string>
+    <string name="location_update_failed">定位更新失敗</string>
+    <string name="locating_for_you">正在為您定位</string>
+    <string name="currently_at">當前在</string>
+    <string name="period">。</string>
+    <string name="currently">當前：</string>
+    <string name="recommended_destinations">推薦目的地：</string>
+    <string name="locating_progress">定位中...</string>
+    <string name="location_success">定位成功，當前在</string>
+    <string name="destination_navigation_hint">目的地%s，點擊開始導航</string>
+    <string name="wifi_location_failed">WiFi定位失敗，請說我在加位置名稱手動設定，例如我在門口</string>
+    <string name="location_failed_hint">定位失敗 | 說"我在XX"設定位置</string>
+    <string name="nearby_locations_prefix">附近有：</string>
+    <string name="destination_not_found">未找到目的地：</string>
+    <string name="destination_does_not_exist">目的地不存在：</string>
+    <string name="no_path_found">未找到路徑到</string>
+
+    <!-- 設定相關 -->
+    <string name="please_exit_settings_mode_first">請先退出設定模式</string>
+    <string name="enter_settings_hint">進入設定。上下滑動調語速，左右滑動切換語言，單擊切換間隔，雙擊退出</string>
+    <string name="settings_completed">設定完成。語速%.1f倍，%s</string>
+    <string name="speed_format">語速：%.1f倍</string>
+    <string name="language_prefix">語言：</string>
+    <string name="pace_display_format">間隔：%d秒</string>
+    <string name="switched_to_language">已切換到</string>
+
+    <!-- 其他 -->
+    <string name="use_stairs_or_elevator_up">請使用樓梯或電梯上樓</string>
+    <string name="use_stairs_or_elevator_down">請使用樓梯或電梯下樓</string>
+    <string name="not_in_settings_mode">當前不在設定模式</string>
+    <string name="not_recognized">未識別: </string>
+    <string name="recognition_failed">識別失敗，請重試</string>
+    <string name="service_status">服務狀態: </string>
+    <string name="tts_ready">TTS就緒 </string>
+    <string name="recognition">識別: </string>
+    <string name="tts_not_ready">TTS未就緒 </string>
+    <string name="vosk_ready">Vosk就緒 </string>
+    <string name="vosk_not_ready">Vosk未就緒 </string>
+    <string name="voice_system_initialized">語音系統初始化完成</string>
+    <string name="pace_adjusted">間隔%d秒</string>
+    <string name="need_record_permission">需要錄音權限</string>
+    <string name="listening">正在聆聽...</string>
+    <string name="voice_recognition_not_ready">語音識別尚未就緒，請在輸入框輸入指令</string>
+    <string name="recognizing">識別中...</string>
+    <string name="long_press_to_view_environment">長按查看環境</string>
+</resources>
