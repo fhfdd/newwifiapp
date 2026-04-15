@@ -654,7 +654,6 @@ public class MainActivity extends AppCompatActivity {
         tvSpeedDisplay = findViewById(R.id.tv_speed_display);
         tvLanguageDisplay = findViewById(R.id.tv_language_display);
         tvPaceDisplay = findViewById(R.id.tv_pace_display);
-        tvUnitDisplay = findViewById(R.id.tv_unit_display);
     }
 
     /**
@@ -1297,7 +1296,7 @@ public class MainActivity extends AppCompatActivity {
             Log.d(TAG, "设置按钮背景为鲜艳绿色（按住效果）");
             btnVoiceAssistant.post(() -> {
                 btnVoiceAssistant.setBackgroundTintList(null);
-                btnVoiceAssistant.setBackgroundResource(R.drawable.button_voice_pressed);
+                btnVoiceAssistant.setBackgroundResource(android.R.drawable.btn_default);
                 Log.d(TAG, "背景已设置，tint已清除");
             });
 
