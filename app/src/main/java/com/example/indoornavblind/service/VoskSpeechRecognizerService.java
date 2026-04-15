@@ -31,7 +31,7 @@ public class VoskSpeechRecognizerService {
     public enum Language {
         // 确保这里的文件名和 assets 里的完全一致
         CHINESE("vosk-model-small-cn-0.22.zip", "zh-CN", "中文", Locale.CHINESE),
-        ENGLISH("vosk-model-small-en-us-0.15.zip", "en-US", "英文", Locale.US),
+        ENGLISH("vosk-model-small-en-us-0.15.zip", "en-US", "English", Locale.US),
         CANTONESE("vosk-model-small-cn-0.22.zip", "yue", "粤語", new Locale("zh", "HK"));
 
         public final String modelName;
