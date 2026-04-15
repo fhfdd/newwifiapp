@@ -106,15 +106,15 @@ public class GlowView extends View {
 
         // 创建径向渐变
         RadialGradient gradient = new RadialGradient(
-            centerX, centerY, maxGlowRadius,
-            new int[] {
-                Color.argb(180, Color.red(glowColor), Color.green(glowColor), Color.blue(glowColor)),
-                Color.argb(100, Color.red(glowColor), Color.green(glowColor), Color.blue(glowColor)),
-                Color.argb(20, Color.red(glowColor), Color.green(glowColor), Color.blue(glowColor)),
-                Color.TRANSPARENT
-            },
-            new float[] {0f, 0.4f, 0.7f, 1f},
-            Shader.TileMode.CLAMP
+                centerX, centerY, maxGlowRadius,
+                new int[] {
+                        Color.argb(180, Color.red(glowColor), Color.green(glowColor), Color.blue(glowColor)),
+                        Color.argb(100, Color.red(glowColor), Color.green(glowColor), Color.blue(glowColor)),
+                        Color.argb(20, Color.red(glowColor), Color.green(glowColor), Color.blue(glowColor)),
+                        Color.TRANSPARENT
+                },
+                new float[] {0f, 0.4f, 0.7f, 1f},
+                Shader.TileMode.CLAMP
         );
         mainGlowPaint.setShader(gradient);
     }
