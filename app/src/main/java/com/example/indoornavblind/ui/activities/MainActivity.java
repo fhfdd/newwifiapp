@@ -62,7 +62,6 @@ public class MainActivity extends AppCompatActivity {
 
     private Position currentPosition;
     private boolean isInSettingsMode = false;
-    private boolean isLocated = false;
     private boolean hasDestination = false;
     private String destinationName = "";
     private float speechSpeed = 1.0f;
@@ -73,10 +72,10 @@ public class MainActivity extends AppCompatActivity {
 
     private LocalIntentEngine intentEngine;
 
-    private Handler longPressHandler = new Handler(Looper.getMainLooper());
+    private final Handler longPressHandler = new Handler(Looper.getMainLooper());
     private Runnable longPressRunnable;
     private boolean isLongPressTriggered = false;
-    private Handler statusUpdateHandler = new Handler(Looper.getMainLooper());
+    private final Handler statusUpdateHandler = new Handler(Looper.getMainLooper());
     private Runnable statusUpdateRunnable;
 
     private GestureDetector gestureDetector;
@@ -88,7 +87,6 @@ public class MainActivity extends AppCompatActivity {
     private int paceIndex = 2;
 
     private TextView tvUnitDisplay;
-    private boolean useSteps = false; // 默认米, 切换为步数
 
     @Override
     protected void attachBaseContext(Context newBase) {
@@ -112,14 +110,10 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
         tvUnitDisplay = findViewById(R.id.tv_unit_display);
 
-// 读取保存的单位偏好
-        useSteps = getSharedPreferences("UserSettings", MODE_PRIVATE)
-                .getBoolean("useSteps", false);
-
-// 初始显示
+        // Initial display update
         updateUnitDisplay();
 
-        android.content.SharedPreferences prefs2 = getSharedPreferences("UserSettings", MODE_PRIVATE);
+        SharedPreferences prefs2 = getSharedPreferences("UserSettings", MODE_PRIVATE);
         boolean wasInSettings = prefs2.getBoolean("in_settings_mode", false);
         if (wasInSettings) {
             prefs2.edit().putBoolean("in_settings_mode", false).apply();
@@ -153,30 +147,37 @@ public class MainActivity extends AppCompatActivity {
                 Log.d("MainActivity", "Navigation data initialized");
             }
         }).start();
-
     }
 
+    /**
+     * Update the unit display on the main screen
+     * Reads the useCm preference from SharedPreferences
+     */
     private void updateUnitDisplay() {
         if (tvUnitDisplay == null) return;
 
+        // Read the preference from SharedPreferences
+        SharedPreferences prefs = getSharedPreferences("UserSettings", MODE_PRIVATE);
+        boolean useCm = prefs.getBoolean("useCm", false); // false = steps, true = cm
+
         String unitText;
         if (currentLanguage == VoskSpeechRecognizerService.Language.ENGLISH) {
-            unitText = useSteps ? "Unit: Steps" : "Unit: Meter";
+            unitText = useCm ? "Unit: cm" : "Unit: steps";
         } else {
-            unitText = useSteps ? "距离单位：步数" : "距离单位：米";
+            unitText = useCm ? "距离单位：厘米" : "距离单位：步数";
         }
 
         tvUnitDisplay.setText(unitText);
+        Log.d(TAG, "Unit display updated: " + unitText + " (useCm=" + useCm + ")");
     }
-    private List<Integer> findFloorsForLocation(String name) {
-        Set<Integer> floors = new HashSet<>();
-        List<PathEntity> allPaths = PathParser.getAllPaths();
-        for (PathEntity path : allPaths) {
-            if (path.getStartLabel_cn().contains(name) || path.getEndLabel_cn().contains(name)) {
-                floors.add(path.getFloor());
-            }
-        }
-        return new ArrayList<>(floors);
+
+    /**
+     * Get the current distance unit preference
+     * @return true for cm, false for steps
+     */
+    private boolean isUsingCm() {
+        SharedPreferences prefs = getSharedPreferences("UserSettings", MODE_PRIVATE);
+        return prefs.getBoolean("useCm", false);
     }
 
     private void processVoiceCommand(String command) {
@@ -201,7 +202,6 @@ public class MainActivity extends AppCompatActivity {
                     Position pos = findPositionByName(result.destination);
                     if (pos != null) {
                         currentPosition = pos;
-                        isLocated = true;
                         navigationService.setCurrentPosition(pos);
                         speak("已设置位置为" + pos.getLabel(), speechSpeed);
                     }
@@ -243,7 +243,7 @@ public class MainActivity extends AppCompatActivity {
                     speak("请先设置目的地并定位", speechSpeed);
                 }
                 break;
-            case SETTINGS:
+            case ENTER_SETTINGS:
                 enterSettingsMode();
                 break;
             case SPEED_UP:
@@ -290,9 +290,7 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onError(String errorMsg) {
                 Log.e(TAG, "Vosk识别错误: " + errorMsg);
-                runOnUiThread(() -> {
-                    speak("识别失败，请重试", speechSpeed);
-                });
+                runOnUiThread(() -> speak("识别失败，请重试", speechSpeed));
             }
         });
 
@@ -326,11 +324,13 @@ public class MainActivity extends AppCompatActivity {
                 runOnUiThread(() -> updateDisplay(String.format("[%d/%d] %s", stepIndex, totalSteps, instruction)));
             }
 
-            @Override public void onTurnWarning(String t, String a, int s) {
+            @Override
+            public void onTurnWarning(String t, String a, int s) {
                 runOnUiThread(() -> vibrate(100));
             }
 
-            @Override public void onProgressUpdate(int c, int r, double d) {}
+            @Override
+            public void onProgressUpdate(int c, int r, double d) {}
 
             @Override
             public void onArrival(String destination, String detailInfo) {
@@ -356,23 +356,30 @@ public class MainActivity extends AppCompatActivity {
             public void onOffRoute(double deviationMeters) {
                 runOnUiThread(() -> {
                     vibrate(300);
-                    speak(String.format("偏离路线%.1f米", deviationMeters), speechSpeed);
+                    // Convert to appropriate unit for speaking
+                    boolean useCm = isUsingCm();
+                    if (useCm) {
+                        double deviationCm = deviationMeters * 100;
+                        speak(String.format(Locale.US, "偏离路线%.0f厘米", deviationCm), speechSpeed);
+                    } else {
+                        speak(String.format(Locale.US, "偏离路线%.1f米", deviationMeters), speechSpeed);
+                    }
                 });
             }
 
-            @Override public void onLocationUpdated(Position position) {
+            @Override
+            public void onLocationUpdated(Position position) {
                 runOnUiThread(() -> currentPosition = position);
             }
 
-            @Override public void onDirectionUpdated(float heading, String cardinal) {}
+            @Override
+            public void onDirectionUpdated(float heading, String cardinal) {}
         });
 
         pathStorage = new PathStorageService(this);
         vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
 
-        new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            checkServicesStatus();
-        }, 4000);
+        new Handler(Looper.getMainLooper()).postDelayed(this::checkServicesStatus, 4000);
     }
 
     private void checkServicesStatus() {
@@ -429,7 +436,10 @@ public class MainActivity extends AppCompatActivity {
     private void initListeners() {
         tvTopDisplay.setOnClickListener(v -> {
             String toSpeak = !lastNavigationInstruction.isEmpty() ? lastNavigationInstruction : lastSpokenText;
-            if (!toSpeak.isEmpty()) { speak(toSpeak, speechSpeed); vibrate(50); }
+            if (!toSpeak.isEmpty()) {
+                speak(toSpeak, speechSpeed);
+                vibrate(50);
+            }
         });
 
         setupLocateNavButton();
@@ -488,7 +498,10 @@ public class MainActivity extends AppCompatActivity {
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN:
                     isLongPressTriggered = false;
-                    longPressRunnable = () -> { isLongPressTriggered = true; onLongPressDetected(); };
+                    longPressRunnable = () -> {
+                        isLongPressTriggered = true;
+                        onLongPressDetected();
+                    };
                     longPressHandler.postDelayed(longPressRunnable, LONG_PRESS_DURATION);
                     return true;
                 case MotionEvent.ACTION_UP:
@@ -592,16 +605,39 @@ public class MainActivity extends AppCompatActivity {
                 float dX = e2.getX() - e1.getX();
                 float dY = e2.getY() - e1.getY();
                 if (Math.abs(dX) > Math.abs(dY)) {
-                    if (Math.abs(dX) > 100) { switchLanguage(); return true; }
+                    if (Math.abs(dX) > 100) {
+                        switchLanguage();
+                        return true;
+                    }
                 } else {
-                    if (Math.abs(dY) > 100) { adjustSpeed(dY < 0 ? SPEED_STEP : -SPEED_STEP); return true; }
+                    if (Math.abs(dY) > 100) {
+                        adjustSpeed(dY < 0 ? SPEED_STEP : -SPEED_STEP);
+                        return true;
+                    }
                 }
                 return false;
             }
-            @Override public boolean onDoubleTap(MotionEvent e) { if (isInSettingsMode) { exitSettingsMode(); return true; } return false; }
-            @Override public boolean onSingleTapConfirmed(MotionEvent e) { if (isInSettingsMode) { switchPace(); return true; } return false; }
+            @Override
+            public boolean onDoubleTap(MotionEvent e) {
+                if (isInSettingsMode) {
+                    exitSettingsMode();
+                    return true;
+                }
+                return false;
+            }
+            @Override
+            public boolean onSingleTapConfirmed(MotionEvent e) {
+                if (isInSettingsMode) {
+                    switchPace();
+                    return true;
+                }
+                return false;
+            }
         });
-        settingsFullscreen.setOnTouchListener((v, event) -> { gestureDetector.onTouchEvent(event); return true; });
+        settingsFullscreen.setOnTouchListener((v, event) -> {
+            gestureDetector.onTouchEvent(event);
+            return true;
+        });
     }
 
     private void startLocation() {
@@ -613,20 +649,20 @@ public class MainActivity extends AppCompatActivity {
             public void onSuccess(Position position) {
                 runOnUiThread(() -> {
                     currentPosition = position;
-                    isLocated = true;
                     navigationService.setCurrentPosition(position);
                     speak("定位成功，当前在" + position.getLabel(), speechSpeed);
                     vibrate(200);
                     new Handler(Looper.getMainLooper()).postDelayed(() -> {
                         announceNearbyPOIs(position);
-                        if (hasDestination) new Handler(Looper.getMainLooper()).postDelayed(() -> speak("目的地" + destinationName + "，点击开始导航", speechSpeed), 2000);
+                        if (hasDestination) {
+                            new Handler(Looper.getMainLooper()).postDelayed(() -> speak("目的地" + destinationName + "，点击开始导航", speechSpeed), 2000);
+                        }
                     }, 2000);
                 });
             }
             @Override
             public void onFailure(String e) {
                 runOnUiThread(() -> {
-                    isLocated = false;
                     speak("WiFi定位失败，请说我在加位置名称手动设置，例如我在门口", speechSpeed);
                     updateDisplay("定位失败 | 说\"我在XX\"设置位置");
                 });
@@ -638,9 +674,13 @@ public class MainActivity extends AppCompatActivity {
         List<PathEntity> allPaths = PathParser.getAllPaths();
         List<String> nearby = new ArrayList<>();
         for (PathEntity path : allPaths) {
-            if (path.getStartLabel_cn().equals(position.getLabel())) nearby.add(path.getEndLabel_cn());
+            if (path.getStartLabel_cn().equals(position.getLabel())) {
+                nearby.add(path.getEndLabel_cn());
+            }
         }
-        if (!nearby.isEmpty()) speak("附近有：" + String.join("、", nearby.subList(0, Math.min(3, nearby.size()))), speechSpeed);
+        if (!nearby.isEmpty()) {
+            speak("附近有：" + String.join("、", nearby.subList(0, Math.min(3, nearby.size()))), speechSpeed);
+        }
     }
 
     private void startNavigation(String target) {
@@ -680,8 +720,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startStatusUpdater() {
-        statusUpdateRunnable = new Runnable() {
-            @Override public void run() { updateNavigationStatus(); statusUpdateHandler.postDelayed(this, 2000); }
+        statusUpdateRunnable = () -> {
+            updateNavigationStatus();
+            statusUpdateHandler.postDelayed(statusUpdateRunnable, 2000);
         };
         statusUpdateHandler.post(statusUpdateRunnable);
     }
@@ -721,6 +762,8 @@ public class MainActivity extends AppCompatActivity {
     private void exitSettingsMode() {
         isInSettingsMode = false;
         settingsFullscreen.setVisibility(View.GONE);
+        // Refresh unit display when exiting settings (in case it was changed)
+        updateUnitDisplay();
         speak(String.format("设置完成。语速%.1f倍，%s", speechSpeed, currentLanguage.displayName), speechSpeed);
     }
 
@@ -761,28 +804,38 @@ public class MainActivity extends AppCompatActivity {
             ttsService.setLanguage(newLocale);
         }
 
+        // Update unit display to reflect language change
+        updateUnitDisplay();
+
         String msg = "zh".equals(newLang) ? "语言已切换为中文" : "Language switched to English";
         speak(msg, speechSpeed);
 
         recreate();
     }
-    private class GestureListener extends GestureDetector.SimpleOnGestureListener {
+
+    /**
+     * Gesture listener for toggling distance unit on the main screen
+     */
+    private class MainScreenGestureListener extends GestureDetector.SimpleOnGestureListener {
         @Override
         public boolean onSingleTapConfirmed(MotionEvent e) {
-            useSteps = !useSteps;
-            getSharedPreferences("UserSettings", MODE_PRIVATE)
-                    .edit().putBoolean("useSteps", useSteps).apply();
+            // Toggle the unit preference
+            SharedPreferences prefs = getSharedPreferences("UserSettings", MODE_PRIVATE);
+            boolean currentUseCm = prefs.getBoolean("useCm", false);
+            boolean newUseCm = !currentUseCm;
 
+            prefs.edit().putBoolean("useCm", newUseCm).apply();
+
+            // Update the display
             updateUnitDisplay();
 
-            speak(currentLanguage == VoskSpeechRecognizerService.Language.ENGLISH
-                            ? (useSteps ? "Switched to steps mode" : "Switched to meter mode")
-                            : (useSteps ? "已切换为步数模式" : "已切换为米模式"),
-                    speechSpeed);
-
-            if (navigationService != null) navigationService.setUseSteps(useSteps);
+            // Speak feedback
+            if (currentLanguage == VoskSpeechRecognizerService.Language.ENGLISH) {
+                speak(newUseCm ? "Switched to cm mode" : "Switched to steps mode", speechSpeed);
+            } else {
+                speak(newUseCm ? "已切换为厘米模式" : "已切换为步数模式", speechSpeed);
+            }
             return true;
-
         }
     }
 
@@ -794,7 +847,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void updateDisplay(String text) {
-        if (tvTopDisplay != null) tvTopDisplay.setText(text);
+        if (tvTopDisplay != null) {
+            tvTopDisplay.setText(text);
+        }
     }
 
     private void speak(String text, float speed) {
@@ -819,7 +874,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void vibrate(long ms) {
-        if (vibrator != null) vibrator.vibrate(ms);
+        if (vibrator != null) {
+            vibrator.vibrate(ms);
+        }
     }
 
     @Override

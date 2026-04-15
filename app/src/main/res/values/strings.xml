@@ -26,6 +26,7 @@
     <string name="language_switched">语言已切换为：%s</string>
     <string name="settings_mode_hint">当前处于设置模式，请先双击退出</string>
 
+
     <!-- 功能提示 -->
     <string name="tap_to_replay">点击重播语音</string>
     <string name="emergency_assistance">紧急求助已请求！请保持当前位置</string>
@@ -42,9 +43,11 @@
     <!-- 动态显示格式 -->
     <string name="distance_unit_format">距离单位：%s</string>
     <string name="unit_steps">步数</string>
-    <string name="unit_meters">米</string>
     <string name="unit_steps_eng">steps</string>
-    <string name="unit_meters_eng">meters</string>
+    <string name="unit_cm_eng">cm</string>
+
+
+
 
     <string name="tts_distance_unit">距离单位：</string>
     <string name="tts_distance_unit_eng">Distance unit: </string>
@@ -57,6 +60,11 @@
     <string name="speech_rate_format">语速：%.1f倍</string>
     <string name="times">倍</string>
     <string name="language_format">语言：%s</string>
+
+    <string name="seconds_unit">秒</string>
+    <string name="pace_adjusted">间隔已调整为%d%s</string>
+    <string name="unit_cm">厘米</string>
+    <string name="distance_unit_changed">距离单位已切换为%s</string>
 
     <!-- 关闭/保存提示 -->
     <string name="settings_closed">设置已关闭</string>

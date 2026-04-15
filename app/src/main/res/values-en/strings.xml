@@ -32,10 +32,12 @@
     <string name="pace_format">Interval: %ds</string>
     <string name="distance_unit">Distance unit</string>
     <string name="unit_steps">steps</string>
-    <string name="unit_meters">meters</string>
     <string name="settings_closed">Settings closed</string>
     <string name="settings_saved">Settings saved</string>
-
+    <string name="seconds_unit">s</string>
+    <string name="pace_adjusted">Interval adjusted to %d%s</string>
+    <string name="unit_cm">cm</string>
+    <string name="distance_unit_changed">Distance unit changed to %s</string>
     <!-- Function Hints -->
     <string name="tap_to_replay">Tap to replay voice</string>
     <string name="emergency_assistance">Emergency assistance requested! Please stay where you are.</string>
@@ -49,7 +51,7 @@
     <string name="distance_unit_format">Distance unit: %s</string>
 
     <string name="unit_steps_eng">steps</string>
-    <string name="unit_meters_eng">meters</string>
+    <string name="unit_cm_eng">cm</string>
     <string name="tts_distance_unit">Distance unit:</string>
     <string name="tts_distance_unit_eng">Distance unit:</string>
 
