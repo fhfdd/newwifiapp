@@ -1,255 +1,325 @@
-package com.example.indoornavblind.ui.activities;
+package com.example.indoornavblind.ui.view;
 
+import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
-import android.annotation.SuppressLint;
+import android.animation.ValueAnimator;
 import android.content.Context;
-import android.content.SharedPreferences;
-import android.os.Build;
-import android.os.Bundle;
-import android.os.VibrationEffect;
-import android.os.Vibrator;
-import android.speech.tts.TextToSpeech;
-import android.view.GestureDetector;
-import android.view.MotionEvent;
+import android.graphics.Canvas;
+import android.graphics.Color;
+import android.graphics.Paint;
+import android.graphics.RadialGradient;
+import android.graphics.Shader;
+import android.util.AttributeSet;
 import android.view.View;
-import android.widget.FrameLayout;
-import android.widget.TextView;
-import android.widget.Toast;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.DecelerateInterpolator;
 
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
+import java.util.ArrayList;
+import java.util.List;
 
-import com.example.indoornavblind.R;
+/**
+ * 呼吸灯光晕效果的自定义View
+ * 参考AI助手唤起效果，实现流畅的波纹扩散、多重圆环和颜色渐变
+ */
+public class GlowView extends View {
 
-import java.util.Locale;
+    // 主光晕画笔
+    private Paint mainGlowPaint;
+    // 波纹画笔
+    private Paint ripplePaint;
+    // 中心脉冲画笔
+    private Paint corePaint;
 
-public class R_SettingsActivity extends AppCompatActivity {
+    private float maxGlowRadius;
+    private int glowColor = Color.parseColor("#00FF00");
 
-    private FrameLayout settingsOverlay;
-    private TextView tvSpeed, tvLang, tvPace, tvUnit;
-    private TextToSpeech tts;
-    private GestureDetector gestureDetector;
-    private SharedPreferences prefs;
+    // 动画状态
+    private float mainGlowRadius = 0f;
+    private float mainAlpha = 0f;
+    private float coreScale = 0f;
 
-    private float speechRate = 1.0f;
-    private int currentLangIndex = 0; // 0=中文, 1=English
-    private final String[] languages = {"中文", "English"};
-    private int paceSeconds = 3;
+    // 波纹效果
+    private List<Ripple> ripples = new ArrayList<>();
+    private long lastRippleTime = 0;
 
-    private boolean useSteps = true;
-    private final String[] distanceUnits = {"步数", "米"};
-    private final String[] distanceUnitsEng = {"steps", "meters"}; // kept & now used
+    private AnimatorSet glowAnimatorSet;
+    private ValueAnimator rippleAnimator;
+    private boolean isAnimating = false;
 
-    private long lastTapTime = 0;
+    // 波纹类
+    private static class Ripple {
+        float radius;
+        float alpha;
+        float speed;
 
-    @SuppressLint("ClickableViewAccessibility")
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-
-        settingsOverlay = findViewById(R.id.settings_fullscreen);
-        tvSpeed = findViewById(R.id.tv_speed_display);
-        tvLang = findViewById(R.id.tv_language_display);
-        tvPace = findViewById(R.id.tv_pace_display);
-        tvUnit = findViewById(R.id.tv_unit_display);
-
-        prefs = getSharedPreferences("UserSettings", MODE_PRIVATE);
-        speechRate = prefs.getFloat("speechRate", 1.0f);
-        currentLangIndex = prefs.getInt("langIndex", 0);
-        paceSeconds = prefs.getInt("pace", 3);
-        useSteps = prefs.getBoolean("useSteps", true);
-
-        updateDisplay();
-
-        // Setup TTS
-        tts = new TextToSpeech(this, status -> {
-            if (status == TextToSpeech.SUCCESS) {
-                tts.setLanguage(currentLangIndex == 0 ? Locale.CHINESE : Locale.ENGLISH);
-            }
-        });
-
-        gestureDetector = new GestureDetector(this, new GestureListener());
-        settingsOverlay.setOnTouchListener((v, event) -> gestureDetector.onTouchEvent(event));
-
-        // Separate gesture for unit row: left/right swipe → change unit
-        GestureDetector unitDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
-            private static final int SWIPE_THRESHOLD = 100;
-            private static final int SWIPE_VELOCITY_THRESHOLD = 100;
-
-            @Override
-            public boolean onFling(@Nullable MotionEvent e1, @Nullable MotionEvent e2,
-                                   float velocityX, float velocityY) {
-                if (e1 == null || e2 == null) return false;
-
-                float diffX = e2.getX() - e1.getX();
-                if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
-                    switchDistanceUnit();
-                    return true;
-                }
-                return false;
-            }
-        });
-
-        tvUnit.setOnTouchListener((v, event) -> {
-            unitDetector.onTouchEvent(event);
-            return true;
-        });
-    }
-
-    private class GestureListener extends GestureDetector.SimpleOnGestureListener {
-        private static final int SWIPE_THRESHOLD = 100;
-        private static final int SWIPE_VELOCITY_THRESHOLD = 100;
-
-        @Override
-        public boolean onDown(@NonNull MotionEvent e) {
-            return true;
-        }
-
-        @Override
-        public boolean onFling(@Nullable MotionEvent e1, @Nullable MotionEvent e2,
-                               float velocityX, float velocityY) {
-            if (e1 == null || e2 == null) return false;
-
-            float diffY = e2.getY() - e1.getY();
-            float diffX = e2.getX() - e1.getX();
-
-            if (Math.abs(diffX) > Math.abs(diffY)) {
-                if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
-                    if (diffX > 0) onSwipeRight();
-                    else onSwipeLeft();
-                    return true;
-                }
-            } else {
-                if (Math.abs(diffY) > SWIPE_THRESHOLD && Math.abs(velocityY) > SWIPE_VELOCITY_THRESHOLD) {
-                    if (diffY > 0) onSwipeDown();
-                    else onSwipeUp();
-                    return true;
-                }
-            }
-            return false;
-        }
-
-        @Override
-        public boolean onSingleTapConfirmed(@NonNull MotionEvent e) {
-            long now = System.currentTimeMillis();
-            if (now - lastTapTime < 400) {
-                closeSettings();
-            }
-            lastTapTime = now;
-            return true;
+        Ripple(float radius, float alpha, float speed) {
+            this.radius = radius;
+            this.alpha = alpha;
+            this.speed = speed;
         }
     }
 
-    private void onSwipeUp() {
-        speechRate = Math.min(3.0f, speechRate + 0.1f);
-        updateDisplay();
-        speakFeedback(getString(R.string.speech_rate) + " " + String.format(Locale.US, "%.1f", speechRate) + getString(R.string.times));
+    public GlowView(Context context) {
+        super(context);
+        init();
     }
 
-    private void onSwipeDown() {
-        speechRate = Math.max(0.5f, speechRate - 0.1f);
-        updateDisplay();
-        speakFeedback(getString(R.string.speech_rate) + " " + String.format(Locale.US, "%.1f", speechRate) + getString(R.string.times));
+    public GlowView(Context context, AttributeSet attrs) {
+        super(context, attrs);
+        init();
     }
 
-    private void updateTtsLanguage() {
-        if (tts != null && tts.isSpeaking()) {
-            tts.stop();  // 先停止正在說的，避免混亂
-        }
-
-        Locale newLocale = (currentLangIndex == 0) ? Locale.CHINESE : Locale.ENGLISH;
-
-        int result = tts.setLanguage(newLocale);
-
-        if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-            // 可選：提示使用者下載語言資料
-            Toast.makeText(this, "該語言資料未安裝", Toast.LENGTH_SHORT).show();
-        }
-    }
-    private void onSwipeLeft() {
-        currentLangIndex = (currentLangIndex + 1) % languages.length;
-        updateDisplay();
-        updateTtsLanguage();
-        speakFeedback(getString(R.string.language) + "：" + languages[currentLangIndex]);
+    public GlowView(Context context, AttributeSet attrs, int defStyleAttr) {
+        super(context, attrs, defStyleAttr);
+        init();
     }
 
-    private void onSwipeRight() {
-        currentLangIndex = (currentLangIndex - 1 + languages.length) % languages.length;
-        updateDisplay();
-        updateTtsLanguage();
-        speakFeedback(getString(R.string.language) + "：" + languages[currentLangIndex]);
-    }
+    private void init() {
+        // 主光晕画笔 - 使用渐变
+        mainGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        mainGlowPaint.setStyle(Paint.Style.FILL);
 
-    private void switchDistanceUnit() {
-        useSteps = !useSteps;
-        updateDisplay();
+        // 波纹画笔 - 描边
+        ripplePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        ripplePaint.setStyle(Paint.Style.STROKE);
+        ripplePaint.setStrokeWidth(3f);
 
-        String unit = useSteps ?
-                (currentLangIndex == 0 ? distanceUnits[0] : distanceUnitsEng[0]) :
-                (currentLangIndex == 0 ? distanceUnits[1] : distanceUnitsEng[1]);
+        // 中心脉冲画笔
+        corePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        corePaint.setStyle(Paint.Style.FILL);
 
-        String prefix = currentLangIndex == 0 ?
-                getString(R.string.tts_distance_unit) :
-                getString(R.string.tts_distance_unit_eng);
-
-        speakFeedback(prefix + unit);
-    }
-
-    private void updateDisplay() {
-        tvSpeed.setText(String.format(Locale.US, getString(R.string.speech_rate_format), speechRate));
-        tvLang.setText(String.format(getString(R.string.language_format), languages[currentLangIndex]));
-        tvPace.setText(String.format(Locale.US, getString(R.string.pace_format), paceSeconds));
-
-        String unit = useSteps ?
-                (currentLangIndex == 0 ? getString(R.string.unit_steps) : getString(R.string.unit_steps_eng)) :
-                (currentLangIndex == 0 ? getString(R.string.unit_meters) : getString(R.string.unit_meters_eng));
-
-        tvUnit.setText(getString(R.string.distance_unit_format, unit));
-    }
-
-    private void speakFeedback(String text) {
-        Vibrator vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
-        if (vibrator != null && vibrator.hasVibrator()) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(80, VibrationEffect.DEFAULT_AMPLITUDE));
-            } else {
-                vibrator.vibrate(80);
-            }
-        }
-
-        if (tts != null) {
-            updateTtsLanguage();
-            tts.setSpeechRate(speechRate);
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
-        }
-
-        ObjectAnimator.ofFloat(tvSpeed, "alpha", 0.7f, 1.0f).setDuration(200).start();
-    }
-
-    private void closeSettings() {
-        SharedPreferences.Editor editor = prefs.edit();
-        editor.putFloat("speechRate", speechRate);
-        editor.putInt("langIndex", currentLangIndex);
-        editor.putInt("pace", paceSeconds);
-        editor.putBoolean("useSteps", useSteps);
-        editor.apply();
-
-        if (tts != null) {
-            updateTtsLanguage();
-            tts.speak(currentLangIndex == 0 ? "退出设置" : "Settings closed", TextToSpeech.QUEUE_FLUSH, null, null);
-        }
-        settingsOverlay.setVisibility(View.GONE);
-        Toast.makeText(this, "设置已保存", Toast.LENGTH_SHORT).show();
+        maxGlowRadius = 100f;
     }
 
     @Override
-    protected void onDestroy() {
-        if (tts != null) {
-            tts.stop();
-            tts.shutdown();
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        maxGlowRadius = Math.max(w, h) * 0.55f;
+
+        // 更新主光晕渐变
+        updateMainGlowGradient();
+    }
+
+    private void updateMainGlowGradient() {
+        int centerX = getWidth() / 2;
+        int centerY = getHeight() / 2;
+
+        // 创建径向渐变
+        RadialGradient gradient = new RadialGradient(
+            centerX, centerY, maxGlowRadius,
+            new int[] {
+                Color.argb(180, Color.red(glowColor), Color.green(glowColor), Color.blue(glowColor)),
+                Color.argb(100, Color.red(glowColor), Color.green(glowColor), Color.blue(glowColor)),
+                Color.argb(20, Color.red(glowColor), Color.green(glowColor), Color.blue(glowColor)),
+                Color.TRANSPARENT
+            },
+            new float[] {0f, 0.4f, 0.7f, 1f},
+            Shader.TileMode.CLAMP
+        );
+        mainGlowPaint.setShader(gradient);
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);
+
+        if (mainAlpha <= 0f && ripples.isEmpty()) {
+            return;
         }
-        super.onDestroy();
+
+        int centerX = getWidth() / 2;
+        int centerY = getHeight() / 2;
+
+        // 1. 绘制主光晕（渐变效果）
+        if (mainAlpha > 0f && mainGlowRadius > 0f) {
+            mainGlowPaint.setAlpha((int) (mainAlpha * 255));
+            canvas.drawCircle(centerX, centerY, mainGlowRadius, mainGlowPaint);
+        }
+
+        // 2. 绘制波纹圆环
+        for (Ripple ripple : ripples) {
+            if (ripple.alpha > 0f && ripple.radius > 0f) {
+                ripplePaint.setAlpha((int) (ripple.alpha * 255));
+                ripplePaint.setStrokeWidth(4f * (1f - ripple.radius / maxGlowRadius) + 1f);
+                canvas.drawCircle(centerX, centerY, ripple.radius, ripplePaint);
+            }
+        }
+
+        // 3. 绘制中心脉冲（多层效果）
+        if (coreScale > 0f && mainAlpha > 0f) {
+            float baseRadius = maxGlowRadius * 0.15f * coreScale;
+
+            // 内层高亮
+            corePaint.setAlpha((int) (mainAlpha * 200));
+            canvas.drawCircle(centerX, centerY, baseRadius, corePaint);
+
+            // 中层光晕
+            corePaint.setAlpha((int) (mainAlpha * 120));
+            canvas.drawCircle(centerX, centerY, baseRadius * 1.5f, corePaint);
+
+            // 外层微光
+            corePaint.setAlpha((int) (mainAlpha * 60));
+            canvas.drawCircle(centerX, centerY, baseRadius * 2f, corePaint);
+        }
+    }
+
+    /**
+     * 启动呼吸灯动画
+     */
+    public void startGlow() {
+        if (isAnimating) {
+            return;
+        }
+
+        isAnimating = true;
+        setVisibility(VISIBLE);
+        ripples.clear();
+        lastRippleTime = System.currentTimeMillis();
+
+        // 1. 主光晕动画 - 扩散 + 呼吸
+        ObjectAnimator mainRadiusAnimator = ObjectAnimator.ofFloat(this, "mainGlowRadius", 0f, maxGlowRadius * 0.9f);
+        mainRadiusAnimator.setDuration(1800);
+        mainRadiusAnimator.setRepeatCount(ObjectAnimator.INFINITE);
+        mainRadiusAnimator.setRepeatMode(ObjectAnimator.RESTART);
+
+        ObjectAnimator mainAlphaAnimator = ObjectAnimator.ofFloat(this, "mainAlpha", 0f, 0.8f, 0.4f, 0f);
+        mainAlphaAnimator.setDuration(1800);
+        mainAlphaAnimator.setRepeatCount(ObjectAnimator.INFINITE);
+        mainAlphaAnimator.setRepeatMode(ObjectAnimator.RESTART);
+
+        // 2. 中心脉冲动画
+        ObjectAnimator coreAnimator = ObjectAnimator.ofFloat(this, "coreScale", 0f, 1.2f, 0.8f, 0f);
+        coreAnimator.setDuration(1800);
+        coreAnimator.setRepeatCount(ObjectAnimator.INFINITE);
+        coreAnimator.setRepeatMode(ObjectAnimator.RESTART);
+
+        // 组合主动画
+        glowAnimatorSet = new AnimatorSet();
+        glowAnimatorSet.playTogether(mainRadiusAnimator, mainAlphaAnimator, coreAnimator);
+        glowAnimatorSet.setInterpolator(new DecelerateInterpolator());
+        glowAnimatorSet.start();
+
+        // 3. 波纹动画（独立运行，产生持续扩散效果）
+        startRippleAnimation();
+    }
+
+    /**
+     * 启动波纹动画
+     */
+    private void startRippleAnimation() {
+        rippleAnimator = ValueAnimator.ofFloat(0f, 1f);
+        rippleAnimator.setDuration(50); // 高频更新
+        rippleAnimator.setRepeatCount(ValueAnimator.INFINITE);
+        rippleAnimator.addUpdateListener(animation -> {
+            // 每400ms产生一个新的波纹
+            long currentTime = System.currentTimeMillis();
+            if (currentTime - lastRippleTime > 400) {
+                addNewRipple();
+                lastRippleTime = currentTime;
+            }
+
+            // 更新所有波纹
+            updateRipples();
+            invalidate();
+        });
+        rippleAnimator.start();
+    }
+
+    /**
+     * 添加新波纹
+     */
+    private void addNewRipple() {
+        float startRadius = maxGlowRadius * 0.1f;
+        float startAlpha = 0.6f;
+        float speed = maxGlowRadius * 0.003f; // 波纹扩散速度
+
+        ripples.add(new Ripple(startRadius, startAlpha, speed));
+
+        // 限制波纹数量
+        if (ripples.size() > 8) {
+            ripples.remove(0);
+        }
+    }
+
+    /**
+     * 更新所有波纹状态
+     */
+    private void updateRipples() {
+        List<Ripple> toRemove = new ArrayList<>();
+
+        for (Ripple ripple : ripples) {
+            ripple.radius += ripple.speed;
+            ripple.alpha -= 0.008f; // 渐隐
+
+            if (ripple.alpha <= 0f || ripple.radius > maxGlowRadius * 1.2f) {
+                toRemove.add(ripple);
+            }
+        }
+
+        ripples.removeAll(toRemove);
+    }
+
+    /**
+     * 停止呼吸灯动画
+     */
+    public void stopGlow() {
+        if (!isAnimating) {
+            return;
+        }
+
+        isAnimating = false;
+
+        if (glowAnimatorSet != null && glowAnimatorSet.isRunning()) {
+            glowAnimatorSet.cancel();
+            glowAnimatorSet = null;
+        }
+
+        if (rippleAnimator != null && rippleAnimator.isRunning()) {
+            rippleAnimator.cancel();
+            rippleAnimator = null;
+        }
+
+        // 重置状态
+        mainGlowRadius = 0f;
+        mainAlpha = 0f;
+        coreScale = 0f;
+        ripples.clear();
+        invalidate();
+        setVisibility(GONE);
+    }
+
+    // Setter方法（用于动画）
+
+    public void setMainGlowRadius(float radius) {
+        this.mainGlowRadius = radius;
+        invalidate();
+    }
+
+    public void setMainAlpha(float alpha) {
+        this.mainAlpha = alpha;
+        invalidate();
+    }
+
+    public void setCoreScale(float scale) {
+        this.coreScale = scale;
+        invalidate();
+    }
+
+    /**
+     * 设置光晕颜色
+     */
+    public void setGlowColor(int color) {
+        this.glowColor = color;
+        updateMainGlowGradient();
+        ripplePaint.setColor(color);
+        corePaint.setColor(color);
+        invalidate();
+    }
+
+    /**
+     * 检查是否正在动画
+     */
+    public boolean isGlowing() {
+        return isAnimating;
     }
 }
