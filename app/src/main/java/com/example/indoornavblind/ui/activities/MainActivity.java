@@ -1,5 +1,3 @@
-MainActivity 整合版（完整可运行）
-
 package com.example.indoornavblind.ui.activities;
 
 import android.content.Context;
@@ -47,6 +45,8 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.lang.ref.WeakReference;
+import android.os.Message;
 
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
@@ -103,7 +103,7 @@ public class MainActivity extends AppCompatActivity {
 
     // Handler（避免内存泄漏，使用静态内部类）
     private static class MyHandler extends Handler {
-        private final WeakReference<MainActivity> activityWeakReference;
+        public final WeakReference<MainActivity> activityWeakReference;
 
         public MyHandler(MainActivity activity) {
             super(Looper.getMainLooper());
@@ -118,6 +118,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
     }
+
     private final MyHandler longPressHandler = new MyHandler(this);
     private final MyHandler statusUpdateHandler = new MyHandler(this);
     private Runnable longPressRunnable;
@@ -228,6 +229,7 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * 获取当前距离单位偏好设置
+     *
      * @return true=厘米，false=步数
      */
     private boolean isUsingCm() {
@@ -481,7 +483,8 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onProgressUpdate(int c, int r, double d) {}
+            public void onProgressUpdate(int c, int r, double d) {
+            }
 
             @Override
             public void onArrival(String destination, String detailInfo) {
@@ -524,7 +527,8 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onDirectionUpdated(float heading, String cardinal) {}
+            public void onDirectionUpdated(float heading, String cardinal) {
+            }
         });
 
         // 9. 初始化其他服务
@@ -1374,5 +1378,4 @@ public class MainActivity extends AppCompatActivity {
             Log.w(TAG, "关闭服务异常: " + e.getMessage());
         }
     }
-
-    // 避免Handler内存泄漏
+}
