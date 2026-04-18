@@ -5,35 +5,51 @@
     android:padding="16dp"
     android:background="#F5F5F5">
 
-    <!-- 顶部显示区 -->
-    <TextView
-        android:id="@+id/tv_top_display"
+
+    <FrameLayout
+        android:id="@+id/fl_top_display"
         android:layout_width="match_parent"
-        android:layout_height="120dp"
-        android:layout_alignParentTop="true"
-        android:background="@drawable/rounded_bg"
-        android:padding="20dp"
-        android:text="@string/welcome"
-        android:textSize="24sp"
-        android:textColor="#000000"
-        android:gravity="center"
-        android:clickable="true"
-        android:focusable="true"
-        android:contentDescription="@string/tap_to_replay"/>
+        android:layout_height="120dp">
+        <!-- 呼吸灯光晕覆盖层（自定义View） -->
+        <com.example.indoornavblind.ui.view.GlowView
+            android:layout_margin="10dp"
+            android:id="@+id/view_glow_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:visibility="gone"/>
+        <!-- 顶部显示区 -->
+        <TextView
+            android:layout_margin="10dp"
+            android:id="@+id/tv_top_display"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_alignParentTop="true"
+            android:background="@drawable/rounded_bg2"
+            android:padding="20dp"
+            android:text="欢迎使用盲人导航"
+            android:textSize="24sp"
+            android:textColor="#000000"
+            android:gravity="center"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="状态显示区，点击重播语音"/>
+
+    </FrameLayout>
 
     <!-- 语音输入框 -->
     <EditText
         android:id="@+id/et_voice_simulate"
         android:layout_width="match_parent"
         android:layout_height="60dp"
-        android:layout_below="@id/tv_top_display"
+        android:layout_below="@id/fl_top_display"
         android:layout_marginTop="20dp"
-        android:hint="@string/voice_command_hint"
+        android:hint="输入目的地"
         android:textSize="20sp"
         android:padding="15dp"
         android:background="@drawable/rounded_bg"
         android:imeOptions="actionDone"
-        android:contentDescription="@string/voice_command_hint"/>
+        android:visibility="gone"
+        android:contentDescription="输入目的地"/>
 
     <!-- 3按钮网格布局 -->
     <LinearLayout
@@ -63,9 +79,9 @@
                 android:textStyle="bold"
                 android:background="@drawable/button_primary"
                 android:textColor="#FFFFFF"
-                android:contentDescription="@string/locate_nav_desc"/>
+                android:contentDescription="定位和导航按钮。未定位时点击定位，定位后输入目的地再点击开始导航"/>
 
-            <!-- 语音助手按钮 -->
+            <!-- 语音助手按钮（按住说话） -->
             <Button
                 android:id="@+id/btn_voice_assistant"
                 android:layout_width="0dp"
@@ -76,8 +92,9 @@
                 android:textSize="24sp"
                 android:textStyle="bold"
                 android:background="@drawable/button_secondary"
+                android:backgroundTint="@null"
                 android:textColor="#FFFFFF"
-                android:contentDescription="@string/voice_assistant_desc"/>
+                android:contentDescription="语音助手按钮，按住说话，松开结束"/>
         </LinearLayout>
 
         <!-- 第二行：紧急求助 + 我的设置 -->
@@ -99,7 +116,7 @@
                 android:textStyle="bold"
                 android:background="@drawable/button_danger"
                 android:textColor="#FFFFFF"
-                android:contentDescription="@string/emergency_desc"/>
+                android:contentDescription="紧急求助按钮"/>
 
             <!-- 我的设置按钮 -->
             <Button
@@ -113,7 +130,7 @@
                 android:textStyle="bold"
                 android:background="@drawable/button_settings"
                 android:textColor="#FFFFFF"
-                android:contentDescription="@string/settings_desc"/>
+                android:contentDescription="设置按钮"/>
         </LinearLayout>
     </LinearLayout>
 
@@ -143,7 +160,6 @@
             android:padding="40dp">
 
             <TextView
-                android:id="@+id/tv_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/settings_mode"
@@ -157,7 +173,7 @@
                 android:id="@+id/tv_speed_display"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/speech_rate_format"
+                android:text="语速：1.0倍"
                 android:textSize="36sp"
                 android:textColor="#FFFFFF"
                 android:gravity="center"
@@ -169,7 +185,7 @@
                 android:id="@+id/tv_language_display"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/language_format"
+                android:text="语言：中文"
                 android:textSize="36sp"
                 android:textColor="#FFFFFF"
                 android:gravity="center"
@@ -181,36 +197,36 @@
                 android:id="@+id/tv_pace_display"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/pace_format"
-
+                android:text="播报间隔：3秒"
                 android:textSize="36sp"
                 android:textColor="#FFFFFF"
                 android:gravity="center"
                 android:padding="30dp"
                 android:layout_marginBottom="40dp"/>
 
-            <!-- 距离单位显示 -->
+            <!-- ...步数  ... -->
+
             <TextView
                 android:id="@+id/tv_unit_display"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/distance_unit_format"
-                android:textSize="36sp"
+                android:text="距离单位：步数"
+                android:textSize="28sp"
                 android:gravity="center"
                 android:padding="24dp"
-                android:textColor="#FFFFFF" />
+                android:background="#330000FF" />
 
             <!-- 操作提示 -->
             <TextView
-                android:id="@+id/tv_hint"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/exit_hint"
+                android:text="上下滑动：调节语速\n左右滑动：切换语言\n双击屏幕：退出设置"
                 android:textSize="20sp"
                 android:textColor="#CCCCCC"
                 android:gravity="center"
                 android:lineSpacingMultiplier="1.5"/>
         </LinearLayout>
     </FrameLayout>
+
 
 </RelativeLayout>
