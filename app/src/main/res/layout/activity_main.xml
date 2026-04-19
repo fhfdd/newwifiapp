@@ -5,21 +5,18 @@
     android:padding="16dp"
     android:background="#F5F5F5">
 
-    <!-- 顶部显示区 + 呼吸灯光晕（完整保留第一段结构） -->
     <FrameLayout
         android:id="@+id/fl_top_display"
         android:layout_width="match_parent"
         android:layout_height="120dp">
 
-        <!-- 呼吸灯光晕覆盖层（自定义View） -->
         <com.example.indoornavblind.ui.view.GlowView
             android:id="@+id/view_glow_overlay"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_margin="10dp"
-            android:visibility="gone"/>
+            android:visibility="gone" />
 
-        <!-- 主显示文本（保留两段所有属性） -->
         <TextView
             android:id="@+id/tv_top_display"
             android:layout_width="match_parent"
@@ -34,10 +31,9 @@
             android:gravity="center"
             android:clickable="true"
             android:focusable="true"
-            android:contentDescription="@string/tap_to_replay"/>
+            android:contentDescription="@string/tap_to_replay" />
     </FrameLayout>
 
-    <!-- 语音输入框（完整保留） -->
     <EditText
         android:id="@+id/et_voice_simulate"
         android:layout_width="match_parent"
@@ -50,9 +46,8 @@
         android:background="@drawable/rounded_bg"
         android:imeOptions="actionDone"
         android:visibility="gone"
-        android:contentDescription="@string/voice_command_hint"/>
+        android:contentDescription="@string/voice_command_hint" />
 
-    <!-- 按钮网格布局（完整保留） -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -61,7 +56,6 @@
         android:layout_above="@+id/bottom_spacer"
         android:orientation="vertical">
 
-        <!-- 第一行：定位导航 + 语音助手 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -79,7 +73,7 @@
                 android:textStyle="bold"
                 android:background="@drawable/button_primary"
                 android:textColor="#FFFFFF"
-                android:contentDescription="定位和导航按钮。未定位时点击定位，定位后输入目的地再点击开始导航"/>
+                android:contentDescription="定位和导航按钮。未定位时点击定位，定位后输入目的地再点击开始导航" />
 
             <Button
                 android:id="@+id/btn_voice_assistant"
@@ -93,10 +87,9 @@
                 android:background="@drawable/button_secondary"
                 android:backgroundTint="@null"
                 android:textColor="#FFFFFF"
-                android:contentDescription="@string/voice_assistant_desc"/>
+                android:contentDescription="@string/voice_assistant_desc" />
         </LinearLayout>
 
-        <!-- 第二行：紧急求助 + 我的设置 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -114,7 +107,7 @@
                 android:textStyle="bold"
                 android:background="@drawable/button_danger"
                 android:textColor="#FFFFFF"
-                android:contentDescription="@string/emergency_desc"/>
+                android:contentDescription="@string/emergency_desc" />
 
             <Button
                 android:id="@+id/btn_settings"
@@ -127,7 +120,7 @@
                 android:textStyle="bold"
                 android:background="@drawable/button_settings"
                 android:textColor="#FFFFFF"
-                android:contentDescription="@string/settings_desc"/>
+                android:contentDescription="@string/settings_desc" />
         </LinearLayout>
     </LinearLayout>
 
@@ -135,9 +128,8 @@
         android:id="@+id/bottom_spacer"
         android:layout_width="match_parent"
         android:layout_height="20dp"
-        android:layout_alignParentBottom="true"/>
+        android:layout_alignParentBottom="true" />
 
-    <!-- 设置全屏浮层（融合两段所有控件与属性） -->
     <FrameLayout
         android:id="@+id/settings_fullscreen"
         android:layout_width="match_parent"
@@ -163,7 +155,7 @@
                 android:textSize="32sp"
                 android:textStyle="bold"
                 android:textColor="#FFFFFF"
-                android:layout_marginBottom="40dp"/>
+                android:layout_marginBottom="40dp" />
 
             <TextView
                 android:id="@+id/tv_speed_display"
@@ -174,7 +166,7 @@
                 android:textColor="#FFFFFF"
                 android:gravity="center"
                 android:padding="30dp"
-                android:layout_marginBottom="20dp"/>
+                android:layout_marginBottom="20dp" />
 
             <TextView
                 android:id="@+id/tv_language_display"
@@ -185,7 +177,7 @@
                 android:textColor="#FFFFFF"
                 android:gravity="center"
                 android:padding="30dp"
-                android:layout_marginBottom="20dp"/>
+                android:layout_marginBottom="20dp" />
 
             <TextView
                 android:id="@+id/tv_pace_display"
@@ -196,7 +188,7 @@
                 android:textColor="#FFFFFF"
                 android:gravity="center"
                 android:padding="30dp"
-                android:layout_marginBottom="40dp"/>
+                android:layout_marginBottom="20dp" />
 
             <TextView
                 android:id="@+id/tv_unit_display"
@@ -206,8 +198,21 @@
                 android:textSize="30sp"
                 android:gravity="center"
                 android:padding="24dp"
+                android:layout_marginBottom="20dp"
                 android:background="#330000FF"
-                android:textColor="#FFFFFF"/>
+                android:textColor="#FFFFFF" />
+
+            <TextView
+                android:id="@+id/tv_stride_display"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="步幅：70厘米"
+                android:textSize="30sp"
+                android:gravity="center"
+                android:padding="24dp"
+                android:layout_marginBottom="30dp"
+                android:background="#3344AA44"
+                android:textColor="#FFFFFF" />
 
             <TextView
                 android:id="@+id/tv_hint"
@@ -217,7 +222,7 @@
                 android:textSize="20sp"
                 android:textColor="#CCCCCC"
                 android:gravity="center"
-                android:lineSpacingMultiplier="1.5"/>
+                android:lineSpacingMultiplier="1.5" />
         </LinearLayout>
     </FrameLayout>
 
