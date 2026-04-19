@@ -649,7 +649,7 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
     private double calculateTotalDistance() {
         double total = 0;
         for (PathEntity step : fullPath) {
-            total += parseDistance(step.getDistance_cn());
+            total += step.getDistanceMeters();
         }
         return total;
     }
@@ -675,9 +675,11 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         String endPoint = step.getEndLabel_cn();
 
         String absoluteDirection = "";
-        if (isCompassEnabled) {
-            absoluteDirection = calculateAbsoluteDirection(relativeDirection);
-            absoluteDirection = "，朝" + absoluteDirection;
+        String cardinal = step.getCardinal();
+        if (cardinal != null && !cardinal.isEmpty()) {
+            absoluteDirection = "，朝" + cardinal + "方向";
+        } else if (isCompassEnabled) {
+            absoluteDirection = "，朝" + calculateAbsoluteDirection(relativeDirection);
         }
 
         String message = String.format("%s，%s，到达%s%s",
