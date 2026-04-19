@@ -26,12 +26,6 @@ public class PathEntity {
     private String nextPoint_en;
     private String nextPoint_yue;
 
-    private double distanceMeters;
-
-    // Getter & Setter（全部补充）
-
-    //    public double getDistanceMeters() { return distanceMeters; }
-    public void setDistanceMeters(double distanceMeters) { this.distanceMeters = distanceMeters; }
     public String getStartLabel_cn() { return startLabel_cn; }
     public void setStartLabel_cn(String startLabel_cn) { this.startLabel_cn = startLabel_cn; }
     public String getStartLabel_en() { return startLabel_en; }
@@ -50,7 +44,14 @@ public class PathEntity {
 
     public void setFloor(int floor) { this.floor = floor; }
     public int getPriority() { return priority; }
+    private String cardinal;
+    private float bearing;
     public void setPriority(int priority) { this.priority = priority; }
+
+    public String getCardinal() { return cardinal; }
+    public void setCardinal(String cardinal) { this.cardinal = cardinal; }
+    public float getBearing() { return bearing; }
+    public void setBearing(float bearing) { this.bearing = bearing; }
 
     public String getDistance_cn() { return distance_cn; }
     public void setDistance_cn(String distance_cn) { this.distance_cn = distance_cn; }
@@ -91,6 +92,9 @@ public class PathEntity {
     public int getStepsRequired(double stepLength) {
         return (int) Math.ceil(getDistanceMeters() / stepLength);
     }
+
+
+
 
 
 }

@@ -201,36 +201,6 @@ public class PathParser {
         return null;
     }
 
-    private static List<PathEntity> reconstructPath(Map<String, String> previous, String start, String end) {
-        List<PathEntity> path = new ArrayList<>();
-        String current = end;
-
-        while (!current.equals(start)) {
-            String prev = previous.get(current);
-            if (prev == null) break;
-
-            PathEntity edge = findEdge(prev, current);
-            if (edge != null) {
-                path.add(0, edge);
-            }
-            current = prev;
-        }
-
-        return path;
-    }
-
-    private static PathEntity findEdge(String from, String to) {
-        for (PathEntity path : allPaths) {
-            if (path.getStartLabel_cn().equals(from) && path.getEndLabel_cn().equals(to)) {
-                return path;
-            }
-            if (path.getEndLabel_cn().equals(from) && path.getStartLabel_cn().equals(to)) {
-                return createReversedPath(path);
-            }
-        }
-        return null;
-    }
-
     private static PathEntity createReversedPath(PathEntity original) {
         PathEntity reversed = new PathEntity();
         reversed.setStartLabel_cn(original.getEndLabel_cn());
@@ -247,14 +217,41 @@ public class PathParser {
         reversed.setNextPoint_cn(original.getStartLabel_cn());
         reversed.setNextPoint_en(original.getStartLabel_en());
         reversed.setNextPoint_yue(original.getStartLabel_yue());
+        reversed.setCardinal(reverseCardinal(original.getCardinal()));
+        reversed.setBearing((original.getBearing() + 180) % 360);
         return reversed;
+    }
+
+    private static String reverseCardinal(String cardinal) {
+        if (cardinal == null) return null;
+        switch (cardinal) {
+            case "东": return "西";
+            case "西": return "东";
+            case "南": return "北";
+            case "北": return "南";
+            case "东北": return "西南";
+            case "西南": return "东北";
+            case "东南": return "西北";
+            case "西北": return "东南";
+            default: return cardinal;
+        }
     }
 
     private static String reverseDirection(String dir) {
         if (dir == null) return null;
-        return dir.replace("左", "右§").replace("右", "左").replace("§", "")
-                .replace("left", "right§").replace("right", "left").replace("§", "")
-                .replace("Left", "Right§").replace("Right", "Left").replace("§", "");
+        StringBuilder sb = new StringBuilder(dir.length());
+        for (int i = 0; i < dir.length(); i++) {
+            char c = dir.charAt(i);
+            if (c == '左') sb.append('右');
+            else if (c == '右') sb.append('左');
+            else sb.append(c);
+        }
+        String s = sb.toString();
+        // 英文整词替换
+        s = s.replaceAll("\\bTurn left\\b", "TURN_RIGHT_TEMP")
+                .replaceAll("\\bTurn right\\b", "Turn left")
+                .replace("TURN_RIGHT_TEMP", "Turn right");
+        return s;
     }
 
     public static String getDirectionByLang(PathEntity path, Locale locale) {
