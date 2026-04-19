@@ -26,7 +26,7 @@ public class App extends Application {
 
     // 配置需要导入的指纹文件（确保文件名和路径正确）
 
-    private static final String[] FINGERPRINT_FILES = {"1a.json","26.json"};
+    private static final String[] FINGERPRINT_FILES = {"1a.json"};
 //    private static final String[] FINGERPRINT_FILES = {"3c.json","2c.json","3a.json","26.json","3cComplex.json","2cComplex.json"};
 
 
