@@ -298,6 +298,48 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
         return directions[index];
     }
 
+    private String getDynamicTurnDirection(float targetBearing, Locale locale) {
+        // 没有指南针时， fallback 用原来的方向
+        if (!isCompassEnabled) {
+            return PathParser.getDirectionByLang(fullPath.get(currentStepIndex), locale);
+        }
+
+        // 1. 计算 面朝的方向和路径要走的方向的角度差
+        float angleDiff = targetBearing - currentAzimuth;
+        // 归一化到 -180 ~ 180 度（标准角度计算）
+        while (angleDiff > 180) angleDiff -= 360;
+        while (angleDiff < -180) angleDiff += 360;
+
+        String dir;
+        // 2. 行业标准转向规则
+        if (Math.abs(angleDiff) <= 25) {
+            dir = "直行";
+        } else if (angleDiff > 25 && angleDiff <= 135) {
+            dir = "向右转";
+        } else if (angleDiff < -25 && angleDiff >= -135) {
+            dir = "向左转";
+        } else {
+            dir = "掉头";
+        }
+
+        if (locale.equals(Locale.ENGLISH)) {
+            switch (dir) {
+                case "直行": return "Go straight";
+                case "向左转": return "Turn left";
+                case "向右转": return "Turn right";
+                default: return "Turn around";
+            }
+        } else if (locale.getLanguage().equals("yue")) {
+            switch (dir) {
+                case "直行": return "直行";
+                case "向左转": return "轉左";
+                case "向右转": return "轉右";
+                default: return "掉頭";
+            }
+        }
+        return dir;
+    }
+
     private String calculateAbsoluteDirection(String relativeDirection) {
         if (!isCompassEnabled) {
             return relativeDirection;
@@ -670,16 +712,14 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
     }
 
     private void announceCurrentStep(PathEntity step) {
-        String relativeDirection = PathParser.getDirectionByLang(step, currentLocale);
+        String relativeDirection = getDynamicTurnDirection(step.getBearing(), currentLocale);
+
         String distance = step.getDistance_cn();
         String endPoint = step.getEndLabel_cn();
 
         String absoluteDirection = "";
-        String cardinal = step.getCardinal();
-        if (cardinal != null && !cardinal.isEmpty()) {
-            absoluteDirection = "，朝" + cardinal + "方向";
-        } else if (isCompassEnabled) {
-            absoluteDirection = "，朝" + calculateAbsoluteDirection(relativeDirection);
+        if (isCompassEnabled) {
+            absoluteDirection = "，朝" + currentCardinalDirection + "方向";
         }
 
         String message = String.format("%s，%s，到达%s%s",
@@ -687,10 +727,6 @@ public class CompassEnhancedNavigationService implements NavigationService, Sens
 
         voiceService.speak(message, baseSpeed);
         Log.d(TAG, String.format("[%d/%d] %s", currentStepIndex + 1, fullPath.size(), message));
-
-        if (eventCallback != null) {
-            eventCallback.onStepAnnounced(currentStepIndex, fullPath.size(), message, absoluteDirection);
-        }
 
         if (step.getDirection_cn() != null && step.getDirection_cn().startsWith("乘电梯")) {
             isWaitingForElevator = true;
