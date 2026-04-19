@@ -130,6 +130,11 @@ public class MainActivity extends AppCompatActivity {
     private boolean isVoiceRecording = false;
     private GestureDetector gestureDetector;
 
+    // ✅ 新增：绿色光晕超时保险（防止TTS的onSpeechDone丢失导致卡绿）
+    private final Handler glowSafetyHandler = new Handler(Looper.getMainLooper());
+    private final Runnable glowSafetyOff = this::stopGlowEffect;
+    private static final long GLOW_MAX_DURATION = 30_000L; // 30秒兜底
+
     @Override
     protected void attachBaseContext(Context newBase) {
         super.attachBaseContext(LanguageManager.updateBaseContextLocale(newBase));
@@ -385,21 +390,32 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onSpeechStart() {
                 Log.d(TAG, "TTS开始播报");
-                runOnUiThread(MainActivity.this::startGlowEffect);
+                runOnUiThread(() -> {
+                    startGlowEffect();
+                    // ✅ 兜底：最多亮 GLOW_MAX_DURATION 毫秒，防止 onSpeechDone 丢失导致卡绿
+                    glowSafetyHandler.removeCallbacks(glowSafetyOff);
+                    glowSafetyHandler.postDelayed(glowSafetyOff, GLOW_MAX_DURATION);
+                });
             }
 
             @Override
             public void onSpeechDone() {
                 Log.d(TAG, "TTS播报完成");
                 lastTtsEndTime = System.currentTimeMillis();
-                runOnUiThread(MainActivity.this::stopGlowEffect);
+                runOnUiThread(() -> {
+                    glowSafetyHandler.removeCallbacks(glowSafetyOff);
+                    stopGlowEffect();
+                });
             }
 
             @Override
             public void onSpeechError(String errorMessage) {
-                Log.d(TAG, "TTS播报出错");
+                Log.d(TAG, "TTS播报出错: " + errorMessage);
                 lastTtsEndTime = System.currentTimeMillis();
-                runOnUiThread(MainActivity.this::stopGlowEffect);
+                runOnUiThread(() -> {
+                    glowSafetyHandler.removeCallbacks(glowSafetyOff);
+                    stopGlowEffect();
+                });
             }
         });
 
@@ -1362,6 +1378,8 @@ public class MainActivity extends AppCompatActivity {
         // 移除所有Handler回调，避免内存泄漏
         statusUpdateHandler.removeCallbacksAndMessages(null);
         longPressHandler.removeCallbacksAndMessages(null);
+        // ✅ 新增：清理光晕兜底Handler
+        glowSafetyHandler.removeCallbacksAndMessages(null);
 
         // 停止导航服务
         if (navigationService != null) {
