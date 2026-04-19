@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.view.View;
 import android.widget.FrameLayout;
@@ -36,7 +37,7 @@ import com.example.indoornavblind.ui.controller.BlindNavigationController;
  *
  * 手势说明：
  * - 单击屏幕：重复当前导航指令
- * - 双击屏幕：播报当前位置和周围节点
+ * - 双击屏幕：播报当前位置和周围节点；播报中双击则打断播报
  * - 长按屏幕：停止导航
  *
  * 注意：
@@ -48,6 +49,7 @@ import com.example.indoornavblind.ui.controller.BlindNavigationController;
  * - 修复#2: 状态监听器管理 (保存引用并正确移除) ✅
  * - 修复#3: AppState.description属性 ✅
  * - 修复#5: VoiceService生命周期管理 ✅
+ * - 新增#6: 播报时双击屏幕打断播报 ✅
  */
 public class BlindFriendlyNavigationActivity extends AppCompatActivity {
     private static final String TAG = "BlindFriendlyNav";
@@ -70,6 +72,11 @@ public class BlindFriendlyNavigationActivity extends AppCompatActivity {
 
     // ✅ 修复#2: 保存状态监听器引用
     private AppStateManager.StateChangeListener stateChangeListener;
+
+    // ✅ 新增#6: 双击打断播报的手势检测器
+    private GestureDetector interruptGestureDetector;
+    // ✅ 新增#6: 缓存 Controller 的触摸监听器，避免每次重建
+    private View.OnTouchListener controllerTouchListener;
 
     // 状态
     private boolean isInitialized = false;
@@ -125,7 +132,8 @@ public class BlindFriendlyNavigationActivity extends AppCompatActivity {
         tvDebugInfo.setTextColor(0xFF888888);
         tvDebugInfo.setTextSize(14);
         tvDebugInfo.setPadding(20, 200, 20, 20);
-        tvDebugInfo.setText("单击=重复\n双击=位置\n长按=停止");
+        // ✅ 新增#6: 更新提示，告知用户双击可打断
+        tvDebugInfo.setText("单击=重复\n双击=位置/打断播报\n长按=停止");
 
         touchArea.addView(tvState);
         touchArea.addView(tvInstruction);
@@ -197,7 +205,7 @@ public class BlindFriendlyNavigationActivity extends AppCompatActivity {
             voicePriorityManager = VoicePriorityManager.getInstance();
             stateManager = AppStateManager.getInstance();
 
-        // 初始化VoiceService
+            // 初始化VoiceService
             if (voiceService != null) {
                 voicePriorityManager.init(voiceService);
             } else {
@@ -234,8 +242,8 @@ public class BlindFriendlyNavigationActivity extends AppCompatActivity {
             // 设置状态监听 ✅ 修复#2: 注册并保存监听器引用
             setupStateListener();
 
-            // 设置触摸监听
-            touchArea.setOnTouchListener(navigationController.createTouchListener());
+            // ✅ 新增#6: 设置触摸监听（包含双击打断播报功能）
+            setupTouchListener();
 
             isInitialized = true;
             updateStateUI("已初始化");
@@ -252,6 +260,48 @@ public class BlindFriendlyNavigationActivity extends AppCompatActivity {
                 );
             }
         }
+    }
+
+    /**
+     * ✅ 新增#6: 设置触摸监听
+     *
+     * 功能：
+     * - 正在播报时双击屏幕 → 打断播报
+     * - 其它情况下的单击/双击/长按 → 交给 Controller 处理（保持原有行为）
+     */
+    private void setupTouchListener() {
+        // 缓存 Controller 的触摸监听器
+        controllerTouchListener = navigationController.createTouchListener();
+
+        // 双击打断播报的手势检测器
+        interruptGestureDetector = new GestureDetector(this,
+                new GestureDetector.SimpleOnGestureListener() {
+                    @Override
+                    public boolean onDoubleTap(MotionEvent e) {
+                        // 只在正在播报时才打断，否则放行给 Controller 走原逻辑
+                        if (voicePriorityManager != null
+                                && voicePriorityManager.isSpeaking()) {
+                            Log.d(TAG, "Double tap while speaking -> stopAll()");
+                            voicePriorityManager.stopAll();
+                            runOnUiThread(() -> {
+                                updateStateUI("已打断播报");
+                                updateInstructionUI("播报已被双击打断");
+                            });
+                            return true;   // 消费掉事件，不再传给 Controller
+                        }
+                        return false;      // 未在播报时，交给 Controller
+                    }
+                });
+
+        // 组合触摸监听：先给手势检测器看一眼，再传给 Controller
+        touchArea.setOnTouchListener((v, event) -> {
+            boolean consumedByInterrupt =
+                    interruptGestureDetector.onTouchEvent(event);
+            boolean consumedByController =
+                    controllerTouchListener != null
+                            && controllerTouchListener.onTouch(v, event);
+            return consumedByInterrupt || consumedByController;
+        });
     }
 
     /**
@@ -394,7 +444,9 @@ public class BlindFriendlyNavigationActivity extends AppCompatActivity {
     private void announceWelcome() {
         if (voicePriorityManager != null) {
             voicePriorityManager.announce(
-                    "欢迎使用盲人导航系统。单击屏幕重复指令，双击播报位置，长按停止导航。",
+                    // ✅ 新增#6: 告诉用户播报中可以双击打断
+                    "欢迎使用盲人导航系统。单击屏幕重复指令，双击播报位置，" +
+                            "播报中双击可打断播报，长按停止导航。",
                     VoicePriorityManager.PRIORITY_INFORMATION,
                     true,
                     () -> {
@@ -454,6 +506,11 @@ public class BlindFriendlyNavigationActivity extends AppCompatActivity {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
+        // ✅ 新增#6: 先给双击打断检测器看一眼
+        if (interruptGestureDetector != null
+                && interruptGestureDetector.onTouchEvent(event)) {
+            return true;
+        }
         if (navigationController != null) {
             return navigationController.onTouchEvent(event);
         }
@@ -508,6 +565,10 @@ public class BlindFriendlyNavigationActivity extends AppCompatActivity {
                 stateManager.removeStateChangeListener(stateChangeListener);
                 stateChangeListener = null;
             }
+
+            // ✅ 新增#6: 释放手势检测相关引用
+            interruptGestureDetector = null;
+            controllerTouchListener = null;
 
         } catch (Exception e) {
             Log.e(TAG, "Error during cleanup", e);

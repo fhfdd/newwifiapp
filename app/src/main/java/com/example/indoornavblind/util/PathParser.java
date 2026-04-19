@@ -12,7 +12,9 @@ import java.util.*;
 
 public class PathParser {
     private static final String TAG = "PathParser";
+
     private static final String[] FINGERPRINT_FILES = {"path_1a.json"};
+
     private static List<PathEntity> allPaths = new ArrayList<>();
     private static boolean isInitialized = false;
     private static final Object LOCK = new Object();
