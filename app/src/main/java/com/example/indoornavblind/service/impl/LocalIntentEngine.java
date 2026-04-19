@@ -81,79 +81,53 @@ public class LocalIntentEngine {
     // 导航相关关键词
     private static final String[] NAVIGATE_KEYWORDS = {
             "去", "到", "导航", "前往", "带我去", "我要去", "怎么去", "走到",
-            "navigate", "navigate to", "go to", "take me to", "how to get to",
-            "directions to", "guide me to", "lead me to", "bring me to",
-            "i want to go", "i want to go to", "head to", "walk to"
+            "navigate", "go to", "take me to", "how to get to", "directions to", "guide me to"
     };
 
     // 定位相关关键词
     private static final String[] LOCATE_KEYWORDS = {
-            "定位", "重新定位", "刷新位置", "更新位置",
-            "locate", "locate me", "find me", "relocate", "refresh location", "update location"
+            "定位", "重新定位", "刷新位置", "更新位置", "locate"
     };
 
     // 手动设置位置关键词（我在XX）
-    // ✅ 包含 Vosk 常见误识别的容错："我到X"/"我要在"等，只要后面跟的是已知地点也当作设置位置
-    // 注："我到X"在中文里本就意为"我到了X"，语义上等同于"我在X"，不是导航指令
     private static final String[] SET_LOCATION_KEYWORDS = {
-            "我在", "我现在在", "我现在位置", "我目前在", "我当前在",
-            "我的位置是", "我位置", "当前位置是", "起点是", "从这里",
-            "位置在", "现在位置",
-            // ↓ Vosk 容易把"我在"识别错，这些是常见的错识别形式
-            "我到", "我要在", "我再", "我倒",
-            // ↓ 英文
-            "i am at", "i'm at", "i am in", "i'm in", "i am on", "i'm on",
-            "my location is", "my position is", "start from", "starting at",
-            "i'm standing at", "i am standing at", "currently at"
+            "我在", "我现在在", "我的位置是", "起点是", "从这里", "i am at", "i'm at", "start from"
     };
 
     // 查询位置关键词
     private static final String[] QUERY_LOCATION_KEYWORDS = {
             "我在哪", "在哪里", "当前位置", "现在在哪", "这是哪", "什么位置",
-            "where am i", "current location", "my location", "where i am",
-            "tell me where i am", "what is my location"
+            "where am i", "current location"
     };
 
     // 查询附近关键词
     private static final String[] QUERY_NEARBY_KEYWORDS = {
-            "附近有什么", "周围有什么", "旁边有什么", "附近", "周围",
-            "nearby", "what's nearby", "whats nearby", "what is nearby",
-            "what's around", "around me", "around here"
+            "附近有什么", "周围有什么", "旁边有什么", "附近", "周围", "nearby"
     };
 
     // 查询进度关键词
     private static final String[] QUERY_PROGRESS_KEYWORDS = {
-            "还有多远", "还要多久", "进度", "剩余", "多少步",
-            "how far", "how much further", "how long", "distance left",
-            "how many steps", "navigation progress", "remaining distance"
+            "还有多远", "还要多久", "进度", "剩余", "多少步", "how far"
     };
 
     // 开始导航关键词
     private static final String[] START_NAV_KEYWORDS = {
-            "开始导航", "开始", "出发", "走吧",
-            "start", "start navigation", "begin", "begin navigation",
-            "let's go", "lets go", "go now", "start guiding"
+            "开始导航", "开始", "出发", "走吧", "start"
     };
 
     // 停止导航关键词
     private static final String[] STOP_NAV_KEYWORDS = {
-            "停止", "停止导航", "结束", "取消", "退出导航",
-            "stop", "cancel", "stop navigation", "cancel navigation",
-            "end navigation", "stop now", "end", "finish", "quit navigation"
+            "停止", "停止导航", "结束", "取消", "退出导航", "stop", "cancel"
     };
 
     // 重复关键词
     private static final String[] REPEAT_KEYWORDS = {
-            "再说一遍", "重复", "没听清", "什么",
-            "pardon", "repeat", "say again", "say that again",
-            "come again", "what did you say", "one more time"
+            "再说一遍", "重复", "没听清", "什么", "pardon", "repeat"
     };
 
     // 帮助关键词
     private static final String[] HELP_KEYWORDS = {
-            "帮助", "怎么用", "使用说明", "能做什么",
-            "help", "help me use", "how to use", "what can i say",
-            "what can you do", "commands", "list commands", "show commands"
+            "帮助", "怎么用", "使用说明", "能做什么", "help"
     };
 
     // 进入设置关键词
@@ -170,33 +144,25 @@ public class LocalIntentEngine {
     // 语速调整关键词
     private static final String[] SPEED_UP_KEYWORDS = {
             "快一点", "加快", "语速快", "说快点", "faster", "speech faster",
-            "语速加", "语速增加", "快啲", "speech rate up", "速度加快",
-            "speed up", "speak faster", "talk faster", "speak quickly",
-            "increase speed", "faster please"
+            "语速加", "语速增加", "快啲", "speech rate up", "速度加快"
     };
 
     private static final String[] SPEED_DOWN_KEYWORDS = {
             "慢一点", "减慢", "语速慢", "说慢点", "slower", "speech slower",
-            "语速减", "语速减少", "慢啲", "speech rate down", "速度减慢",
-            "slow down", "speak slower", "talk slower", "speak slowly",
-            "decrease speed", "slower please"
+            "语速减", "语速减少", "慢啲", "speech rate down", "速度减慢"
     };
 
     // 紧急关键词
     private static final String[] EMERGENCY_KEYWORDS = {
-            "救命", "帮帮我", "紧急", "求助",
-            "emergency", "help me", "help!", "sos",
-            "紧急求助", "紧急帮助", "emergency help", "帮下手", "幫我",
-            "call for help", "need help", "call emergency"
+            "救命", "帮帮我", "紧急", "求助", "emergency", "help me", "help!",
+            "紧急求助", "紧急帮助", "emergency help", "帮帮我", "帮下手", "幫我"
     };
 
     // 语音助手关键词
     private static final String[] VOICE_ASSISTANT_KEYWORDS = {
             "语音助手", "语音助理", "voice assistant", "open assistant",
             "打开助手", "进入助手", "启动助手", "voice input", "开始录音",
-            "我想提问", "有问题要问",
-            "activate assistant", "start assistant", "launch assistant",
-            "i have a question", "i want to ask"
+            "我想提问", "有问题要问"
     };
 
     // 语音测试关键词
@@ -207,23 +173,18 @@ public class LocalIntentEngine {
 
     // 继续导航关键词
     private static final String[] CONTINUE_NAV_KEYWORDS = {
-            "继续导航", "继续", "continue navigation", "continue", "前进",
-            "resume", "resume navigation", "keep going", "go on", "proceed"
+            "继续导航", "继续", "continue navigation", "continue", "前进"
     };
 
     // 楼层导航关键词
     private static final String[] FLOOR_UP_KEYWORDS = {
             "上楼梯", "上去", "上楼", "上去楼梯", "up stairs", "go up",
-            "搭电梯上去", "乘电梯上去", "电梯上楼",
-            "go upstairs", "take stairs up", "go up the stairs",
-            "take elevator up", "floor up"
+            "搭电梯上去", "乘电梯上去", "电梯上楼"
     };
 
     private static final String[] FLOOR_DOWN_KEYWORDS = {
             "下楼梯", "下去", "下楼", "下去楼梯", "down stairs", "go down",
-            "搭电梯下去", "乘电梯下去", "电梯下楼",
-            "go downstairs", "take stairs down", "go down the stairs",
-            "take elevator down", "floor down"
+            "搭电梯下去", "乘电梯下去", "电梯下楼"
     };
 
     // 所有可用目的地列表（从路径数据中提取）
@@ -275,7 +236,8 @@ public class LocalIntentEngine {
             return new IntentResult(Intent.UNKNOWN, null, 0f, text);
         }
 
-        String normalizedText = text.toLowerCase().trim();
+        // 去除空格等空白，避免 Vosk 返回 "我 在 厕所" 时无法匹配 "我在"
+        String normalizedText = text.toLowerCase().trim().replaceAll("\\s+", "");
         Log.d(TAG, "识别输入: " + normalizedText);
 
         // 1. 首先检查是否是紧急求助（优先级最高）
@@ -283,10 +245,7 @@ public class LocalIntentEngine {
             return new IntentResult(Intent.EMERGENCY, null, 1.0f, text);
         }
 
-        // ✅ 2. 优先检查"我在XX"手动设置位置（必须在导航意图之前！）
-        // 原因：NAVIGATE_KEYWORDS 含单字"去"/"到"，容易误命中；
-        //       Vosk 也可能把"我在"误识别为"我到"/"我要"，
-        //       所以先用更具体的"我在XX"模式匹配，匹不上再看导航意图。
+        // 2. 语音监听到“我在xxx”时优先识别为设置位置，未定位时直接定位，不触发“请先定位”
         IntentResult setLocResult = parseSetLocationIntent(normalizedText, text);
         if (setLocResult != null) {
             return setLocResult;
@@ -298,7 +257,7 @@ public class LocalIntentEngine {
             return navResult;
         }
 
-        // 3. 检查其他意图
+        // 4. 检查其他意图
         if (matchKeywords(normalizedText, STOP_NAV_KEYWORDS)) {
             return new IntentResult(Intent.STOP_NAVIGATION, null, 0.9f, text);
         }
@@ -411,11 +370,13 @@ public class LocalIntentEngine {
         return result;
     }
 
+    /** 查询类短语：这些跟在"我在"后面时视为“我在哪”类查询，不当作设置位置 */
+    private static final String[] SET_LOCATION_QUERY_WORDS = {
+            "哪", "哪里", "什么地方", "什么位置", "哪儿", "where"
+    };
+
     /**
-     * 解析手动设置位置意图（我在XX）
-     */
-    /**
-     * 解析设置位置意图（"我在XX"）
+     * 解析设置位置意图（"我在XX"）— 语音监听到"我在xx"后用于执行定位/设置位置逻辑
      */
     private IntentResult parseSetLocationIntent(String normalizedText, String originalText) {
         String matchedKeyword = null;
@@ -430,13 +391,30 @@ public class LocalIntentEngine {
             return null;
         }
 
-        // 提取位置
+        // 提取关键词后的内容
         int keywordIndex = normalizedText.indexOf(matchedKeyword);
         String afterKeyword = normalizedText.substring(keywordIndex + matchedKeyword.length()).trim();
-        String location = findDestination(afterKeyword);
+        // 排除“我在哪/哪里”等查询意图，交给 QUERY_LOCATION 处理
+        for (String q : SET_LOCATION_QUERY_WORDS) {
+            if (afterKeyword.startsWith(q) || afterKeyword.contains(q)) {
+                return null;
+            }
+        }
+        if (afterKeyword.isEmpty()) {
+            return null;
+        }
 
+        // 优先从已知目的地中匹配
+        String location = findDestination(afterKeyword);
         if (location == null) {
             location = findDestination(normalizedText);
+        }
+        // 未在列表中时仍返回“我在xx”的xx部分，由 MainActivity 尝试 findPositionByName 或提示
+        if (location == null && afterKeyword.length() >= 1) {
+            String raw = afterKeyword.split("[\\s，,。.、]+")[0].trim();
+            if (raw.length() <= 20) {
+                location = raw;
+            }
         }
 
         if (location != null) {
@@ -518,8 +496,8 @@ public class LocalIntentEngine {
     private static final Map<String, String[]> LOCATION_ALIASES = new HashMap<>();
     static {
         // 厕所相关
-        LOCATION_ALIASES.put("男厕", new String[]{"男厕所", "male toilet", "male washroom", "男洗手间"});
-        LOCATION_ALIASES.put("女厕", new String[]{"女厕所", "female toilet", "female washroom", "女洗手间", "f washroom"});
+        LOCATION_ALIASES.put("男厕", new String[]{"男厕","男厕所", "male toilet", "male washroom", "男洗手间"});
+        LOCATION_ALIASES.put("女厕", new String[]{"女厕", "女厕所", "female toilet", "female washroom", "女洗手间", "f washroom"});
         LOCATION_ALIASES.put("厕所", new String[]{"洗手间", "toilet", "washroom", "卫生间", "wc"});
         // 电梯相关
         LOCATION_ALIASES.put("电梯", new String[]{"lift", "elevator", "升降机"});
@@ -566,23 +544,12 @@ public class LocalIntentEngine {
     /**
      * 检查文本是否匹配关键词列表
      * 修复：先去除所有空白字符再匹配，处理"退出 设置"这种带空格的情况
-     * ✅ 英文修复：同时尝试"带空格"和"不带空格"两种匹配方式，
-     *   避免"where am i"这类多词英文关键词被错误地裁掉空格导致匹配失败
      */
     private boolean matchKeywords(String text, String[] keywords) {
-        if (text == null) return false;
-        String lower = text.toLowerCase();                    // 带空格版（英文用）
-        String normalized = lower.replaceAll("\\s+", "");     // 去空格版（中文用）
+        // 去除所有空白字符（空格、中文空格、换行、制表符等）
+        String normalized = text.replaceAll("\\s+", "");
         for (String keyword : keywords) {
-            if (keyword == null || keyword.isEmpty()) continue;
-            String k = keyword.toLowerCase();
-            // 方式1：原始带空格匹配（用于 "where am i"、"go to" 这类英文词组）
-            if (lower.contains(k)) {
-                return true;
-            }
-            // 方式2：去空格后匹配（用于 "退出 设置" → "退出设置" 这类中文带空格情况）
-            String kNoSpace = k.replaceAll("\\s+", "");
-            if (!kNoSpace.isEmpty() && normalized.contains(kNoSpace)) {
+            if (normalized.contains(keyword)) {
                 return true;
             }
         }
