@@ -96,6 +96,7 @@ public class MainActivity extends AppCompatActivity {
     private static final float SPEED_MIN = 0.5f;
     private static final float SPEED_MAX = 2.0f;
     private static final int[] PACE_OPTIONS = {2000, 3000, 5000, 8000};
+    private static final float DEFAULT_STRIDE_CM = 60f;
     private int paceIndex = 2;
 
     // 未匹配位置缓存（用户说”我在xx”但xx不在已知地点列表中时写入）
@@ -222,23 +223,34 @@ public class MainActivity extends AppCompatActivity {
 
     /**
      * 更新主屏幕距离单位显示
-     * 从SharedPreferences读取useCm偏好设置
+     * 从SharedPreferences读取useCm和strideCm偏好设置
      */
     private void updateUnitDisplay() {
-        if (tvUnitDisplay == null) return;
-
         SharedPreferences prefs = getSharedPreferences("UserSettings", MODE_PRIVATE);
-        boolean useCm = prefs.getBoolean("useCm", false); // false = 步数，true = 厘米
+        boolean useCm = prefs.getBoolean("useCm", false);
+        float strideCm = prefs.getFloat("strideCm", DEFAULT_STRIDE_CM);
 
-        String unitText;
-        if (currentLanguage == VoskSpeechRecognizerService.Language.ENGLISH) {
-            unitText = useCm ? "Unit: cm" : "Unit: steps";
-        } else {
-            unitText = useCm ? "距离单位：厘米" : "距离单位：步数";
+        if (tvUnitDisplay != null) {
+            String unitText;
+            if (currentLanguage == VoskSpeechRecognizerService.Language.ENGLISH) {
+                unitText = useCm ? "Distance Unit: cm" : "Distance Unit: steps";
+            } else {
+                unitText = useCm ? "距离单位：厘米" : "距离单位：步数";
+            }
+            tvUnitDisplay.setText(unitText);
+            Log.d(TAG, "Unit display updated: " + unitText + " (useCm=" + useCm + ")");
         }
 
-        tvUnitDisplay.setText(unitText);
-        Log.d(TAG, "Unit display updated: " + unitText + " (useCm=" + useCm + ")");
+        if (tvStrideDisplay != null) {
+            String strideText;
+            if (currentLanguage == VoskSpeechRecognizerService.Language.ENGLISH) {
+                strideText = String.format(Locale.US, "Stride: %.0f cm", strideCm);
+            } else {
+                strideText = String.format(Locale.CHINA, "步幅：%.0f厘米", strideCm);
+            }
+            tvStrideDisplay.setText(strideText);
+            Log.d(TAG, "Stride display updated: " + strideText);
+        }
     }
 
     /**
@@ -249,6 +261,14 @@ public class MainActivity extends AppCompatActivity {
     private boolean isUsingCm() {
         SharedPreferences prefs = getSharedPreferences("UserSettings", MODE_PRIVATE);
         return prefs.getBoolean("useCm", false);
+    }
+
+    /**
+     * 获取当前步幅设置（厘米）
+     */
+    private float getStrideCm() {
+        SharedPreferences prefs = getSharedPreferences("UserSettings", MODE_PRIVATE);
+        return prefs.getFloat("strideCm", DEFAULT_STRIDE_CM);
     }
 
     /**
@@ -287,7 +307,6 @@ public class MainActivity extends AppCompatActivity {
                 }
                 break;
             case SET_LOCATION:
-                // 处理“我在xx”手动定位逻辑
                 if (result.destination == null) break;
                 if (!isLocated || currentPosition == null) {
                     speak(L("正在定位到" + result.destination,
@@ -401,25 +420,20 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 初始化所有服务（整合两份代码，保留工厂模式、TTS/Vosk监听、导航服务等核心逻辑）
+     * 初始化所有服务
      */
     private void initServices() {
         Log.d(TAG, "初始化服务 - 使用工厂模式");
 
-        // 1. 初始化服务工厂（核心）
         serviceFactory = ServiceFactory.getInstance(this);
-
-        // 2. 获取TTS服务（语音播报）
         ttsService = serviceFactory.getTtsService();
 
-        // 2.1 设置TTS状态监听器：控制绿色光晕效果
         ttsService.setTTSSpeechListener(new C_TextToSpeechService.TTSSpeechListener() {
             @Override
             public void onSpeechStart() {
                 Log.d(TAG, "TTS开始播报");
                 runOnUiThread(() -> {
                     startGlowEffect();
-                    // ✅ 兜底：最多亮 GLOW_MAX_DURATION 毫秒，防止 onSpeechDone 丢失导致卡绿
                     glowSafetyHandler.removeCallbacks(glowSafetyOff);
                     glowSafetyHandler.postDelayed(glowSafetyOff, GLOW_MAX_DURATION);
                 });
@@ -446,10 +460,8 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 3. 获取Vosk服务（语音识别）
         voskService = serviceFactory.getVoskService();
 
-        // 4. 设置Vosk识别监听器（处理识别结果，添加回声保护）
         voskServiceListener = new VoskSpeechRecognizerService.OnRecognitionListener() {
             @Override
             public void onResult(ArrayList<String> results) {
@@ -457,7 +469,6 @@ public class MainActivity extends AppCompatActivity {
                     String command = cleanRecognizedText(results.get(0));
                     Log.d(TAG, "Vosk识别结果: " + command);
 
-                    // 回声窗口保护：TTS结束后500ms内忽略识别结果
                     long timeSinceTtsEnd = System.currentTimeMillis() - lastTtsEndTime;
                     if (timeSinceTtsEnd < TTS_END_ECHO_WINDOW_MS) {
                         Log.d(TAG, "TTS结束后" + timeSinceTtsEnd + "ms内的识别，忽略可能是回声: " + command);
@@ -468,7 +479,7 @@ public class MainActivity extends AppCompatActivity {
                         lastRecognizedText = command;
                         updateDisplay(L("识别: " + command,
                                 "Recognized: " + command));
-                        vibrate(30); // 轻微震动表示识别成功
+                        vibrate(30);
                         processVoiceCommand(command);
                     });
                 }
@@ -477,7 +488,6 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onError(String errorMsg) {
                 Log.e(TAG, "Vosk识别错误: " + errorMsg);
-                // 回声保护窗口期内，静默忽略错误
                 long timeSinceTtsEnd = System.currentTimeMillis() - lastTtsEndTime;
                 if (timeSinceTtsEnd < TTS_END_ECHO_WINDOW_MS) {
                     return;
@@ -488,21 +498,17 @@ public class MainActivity extends AppCompatActivity {
         };
         voskService.setRecognitionListener(voskServiceListener);
 
-        // 5. 初始化意图引擎
         intentEngine = new LocalIntentEngine(this);
 
-        // 6. 初始化WiFi和定位服务
         wifiScanner = new L_WiFiScannerServiceImpl();
         wifiScanner.init(this);
         locationService = new L_KnnLocationService(wifiScanner);
         locationService.init(this);
 
-        // 7. 初始化导航服务（传入TTS服务，用于播报导航指令）
         navigationService = new CompassEnhancedNavigationService(ttsService, locationService);
         navigationService.initSensors(this);
         navigationService.loadUserSettings(this);
 
-        // 8. 设置导航回调（整合两份代码的回调逻辑，去重优化）
         navigationService.setPositionUpdateCallback(newPosition -> {
             runOnUiThread(() -> currentPosition = newPosition);
         });
@@ -558,17 +564,19 @@ public class MainActivity extends AppCompatActivity {
             public void onOffRoute(double deviationMeters) {
                 runOnUiThread(() -> {
                     vibrate(300);
-                    // 根据单位偏好播报偏离距离
                     boolean useCm = isUsingCm();
+                    float strideCm = getStrideCm();
+
                     if (useCm) {
-                        double deviationCm = deviationMeters * 100;
+                        double deviationCm = deviationMeters * 100.0;
                         speak(L(
-                                String.format(Locale.US, "偏离路线%.0f厘米", deviationCm),
+                                String.format(Locale.CHINA, "偏离路线%.0f厘米", deviationCm),
                                 String.format(Locale.US, "Off route by %.0f cm", deviationCm)), speechSpeed);
                     } else {
+                        double deviationSteps = (deviationMeters * 100.0) / strideCm;
                         speak(L(
-                                String.format(Locale.US, "偏离路线%.1f米", deviationMeters),
-                                String.format(Locale.US, "Off route by %.1f meters", deviationMeters)), speechSpeed);
+                                String.format(Locale.CHINA, "偏离路线约%.0f步", deviationSteps),
+                                String.format(Locale.US, "Off route by about %.0f steps", deviationSteps)), speechSpeed);
                     }
                 });
             }
@@ -583,11 +591,9 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 9. 初始化其他服务
         pathStorage = new PathStorageService(this);
         vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
 
-        // 10. 延迟检查服务状态（避免初始化未完成导致的异常）
         statusUpdateHandler.postDelayed(this::checkServicesStatus, 4000);
     }
 
@@ -619,7 +625,6 @@ public class MainActivity extends AppCompatActivity {
     private Position findPositionByName(String name) {
         List<PathEntity> allPaths = PathParser.getAllPaths();
         for (PathEntity path : allPaths) {
-            // 模糊匹配：位置包含名称 或 名称包含位置
             if (path.getStartLabel_cn().contains(name) || name.contains(path.getStartLabel_cn())) {
                 Position pos = new Position();
                 pos.setLabel(path.getStartLabel_cn());
@@ -644,7 +649,6 @@ public class MainActivity extends AppCompatActivity {
         String n = name.trim();
         Position pos = findPositionByName(n);
         if (pos != null) return pos;
-        // 缓存匹配：忽略大小写，模糊匹配
         for (String cached : unmatchedLocationCache) {
             if (cached.equalsIgnoreCase(n) || n.contains(cached) || cached.contains(n)) {
                 Position fromCache = new Position();
@@ -692,7 +696,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 初始化所有控件（整合两份代码，去重控件定义）
+     * 初始化所有控件
      */
     private void initViews() {
         tvTopDisplay = findViewById(R.id.tv_top_display);
@@ -706,13 +710,14 @@ public class MainActivity extends AppCompatActivity {
         tvSpeedDisplay = findViewById(R.id.tv_speed_display);
         tvLanguageDisplay = findViewById(R.id.tv_language_display);
         tvPaceDisplay = findViewById(R.id.tv_pace_display);
+        tvUnitDisplay = findViewById(R.id.tv_unit_display);
+        tvStrideDisplay = findViewById(R.id.tv_stride_display);
     }
 
     /**
-     * 初始化所有监听器（整合按住说话、按钮点击、手势等逻辑）
+     * 初始化所有监听器
      */
     private void initListeners() {
-        // 顶部显示栏点击：重复播报最后一条导航指令或播报内容
         tvTopDisplay.setOnClickListener(v -> {
             String toSpeak = !lastNavigationInstruction.isEmpty() ? lastNavigationInstruction : lastSpokenText;
             if (!toSpeak.isEmpty()) {
@@ -721,10 +726,8 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 定位/导航按钮（长按+单击逻辑）
         setupLocateNavButton();
 
-        // 语音助手按钮（按住说话，类似微信）
         btnVoiceAssistant.setOnTouchListener((v, event) -> {
             if (isInSettingsMode) {
                 speak(L("请先退出设置模式", "Please exit settings mode first"), speechSpeed);
@@ -733,14 +736,12 @@ public class MainActivity extends AppCompatActivity {
 
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN:
-                    // 按下：开始录音
                     isVoiceButtonPressed = true;
                     handleVoiceButtonPress();
                     return true;
 
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
-                    // 松开：停止录音并处理
                     if (isVoiceButtonPressed) {
                         isVoiceButtonPressed = false;
                         handleVoiceButtonRelease();
@@ -750,17 +751,14 @@ public class MainActivity extends AppCompatActivity {
             return false;
         });
 
-        // 设置按钮
         btnSettings.setOnClickListener(v -> enterSettingsMode());
 
-        // 紧急呼叫按钮（拨号）
         btnEmergency.setOnClickListener(v -> {
             speak(L("紧急求助已触发，正在拨号", "Emergency help triggered, dialing"), speechSpeed);
             vibrate(500);
             Intent intent = new Intent(Intent.ACTION_DIAL);
             intent.setData(Uri.parse("tel:+85212345678"));
             startActivity(intent);
-            // 播报当前位置（如果已定位）
             if (currentPosition != null) {
                 String emMsg = L("当前位置：" + currentPosition.getLabel() + "。" + navigationService.getCurrentDirectionInfo(),
                         "Current location: " + currentPosition.getLabel() + ". " + navigationService.getCurrentDirectionInfo());
@@ -768,13 +766,9 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // 设置页面手势监听器
         setupSettingsGestures();
-
-        // 导航状态更新（每2秒更新一次）
         startStatusUpdater();
 
-        // 模拟语音输入框（回车触发指令）
         etVoiceSimulate.setOnEditorActionListener((v, actionId, event) -> {
             String input = etVoiceSimulate.getText().toString().trim();
             if (!input.isEmpty()) {
@@ -819,19 +813,16 @@ public class MainActivity extends AppCompatActivity {
         }
         vibrate(50);
 
-        // 如果正在等待电梯，确认电梯到达
         if (navigationService.isWaitingForElevator()) {
             navigationService.confirmElevatorArrival();
             return;
         }
 
-        // 导航中：更新当前位置
         if (navigationService.isNavigating()) {
             speak(L("正在更新位置", "Updating location"), speechSpeed);
             updateDisplay(L("定位更新中...", "Updating location..."));
             updateCurrentLocation();
         } else {
-            // 非导航中：开始定位
             startLocation();
         }
     }
@@ -870,20 +861,17 @@ public class MainActivity extends AppCompatActivity {
         vibrate(200);
 
         if (navigationService.isNavigating()) {
-            // 长按：停止导航
             navigationService.stopNavigation();
             hasDestination = false;
             destinationName = "";
             speak(L("导航已停止", "Navigation stopped"), speechSpeed);
             updateDisplay(L("导航已停止", "Navigation stopped"));
         } else {
-            // 长按：开始导航（有目的地）/ 播报环境（无目的地）
             if (hasDestination && currentPosition != null) {
                 speak(L("开始导航到" + destinationName,
                         "Starting navigation to " + destinationName), speechSpeed);
                 startNavigation(destinationName);
             } else if (!hasDestination) {
-                // 无目的地：播报当前环境+附近地点+推荐目的地
                 if (currentPosition != null) {
                     announceCurrentEnvironment();
                 } else {
@@ -891,7 +879,6 @@ public class MainActivity extends AppCompatActivity {
                             "Please locate or set a destination first"), speechSpeed);
                 }
             } else {
-                // 有目的地但未定位：开始定位
                 speak(L("正在为您定位", "Locating for you"), speechSpeed);
                 startLocation();
             }
@@ -909,10 +896,8 @@ public class MainActivity extends AppCompatActivity {
         updateDisplay(L("当前：" + currentPosition.getLabel(),
                 "Current: " + currentPosition.getLabel()));
 
-        // 延迟播报附近地点
         statusUpdateHandler.postDelayed(() -> {
             announceNearbyPOIs(currentPosition);
-            // 无目的地时，延迟播报推荐目的地
             if (!hasDestination) {
                 statusUpdateHandler.postDelayed(() -> {
                     List<String> recs = pathStorage.recommendDestinations(currentPosition.getLabel(), 3);
@@ -926,25 +911,69 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 设置页面手势监听器（滑动切换语言/语速，单击切换间隔，双击退出）
+     * 设置页面手势监听器
      */
     private void setupSettingsGestures() {
         gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override
             public boolean onFling(MotionEvent e1, MotionEvent e2, float vX, float vY) {
-                if (!isInSettingsMode) return false;
+                if (!isInSettingsMode || e1 == null || e2 == null) return false;
+
                 float dX = e2.getX() - e1.getX();
                 float dY = e2.getY() - e1.getY();
-                // 左右滑动：切换语言
+
+                View paceView = findViewById(R.id.tv_pace_display);
+                View unitView = findViewById(R.id.tv_unit_display);
+                View strideView = findViewById(R.id.tv_stride_display);
+
+                float startY = e1.getY();
+
+                if (strideView != null) {
+                    int[] loc = new int[2];
+                    strideView.getLocationOnScreen(loc);
+                    int top = loc[1];
+                    int bottom = top + strideView.getHeight();
+
+                    if (startY >= top && startY <= bottom && Math.abs(dY) > Math.abs(dX) && Math.abs(dY) > 100) {
+                        adjustStrideCm(dY < 0 ? 5f : -5f);
+                        return true;
+                    }
+                }
+
+                if (paceView != null) {
+                    int[] loc = new int[2];
+                    paceView.getLocationOnScreen(loc);
+                    int top = loc[1];
+                    int bottom = top + paceView.getHeight();
+
+                    if (startY >= top && startY <= bottom && Math.abs(dX) > Math.abs(dY) && Math.abs(dX) > 100) {
+                        switchPace();
+                        return true;
+                    }
+                }
+
+                if (unitView != null) {
+                    int[] loc = new int[2];
+                    unitView.getLocationOnScreen(loc);
+                    int top = loc[1];
+                    int bottom = top + unitView.getHeight();
+
+                    if (startY >= top && startY <= bottom && Math.abs(dX) > Math.abs(dY) && Math.abs(dX) > 100) {
+                        switchDistanceUnit();
+                        return true;
+                    }
+                }
+
                 if (Math.abs(dX) > Math.abs(dY) && Math.abs(dX) > 100) {
                     switchLanguage();
                     return true;
                 }
-                // 上下滑动：调整语速
+
                 if (Math.abs(dY) > 100) {
                     adjustSpeed(dY < 0 ? SPEED_STEP : -SPEED_STEP);
                     return true;
                 }
+
                 return false;
             }
 
@@ -952,15 +981,6 @@ public class MainActivity extends AppCompatActivity {
             public boolean onDoubleTap(MotionEvent e) {
                 if (isInSettingsMode) {
                     exitSettingsMode();
-                    return true;
-                }
-                return false;
-            }
-
-            @Override
-            public boolean onSingleTapConfirmed(MotionEvent e) {
-                if (isInSettingsMode) {
-                    switchPace();
                     return true;
                 }
                 return false;
@@ -990,10 +1010,8 @@ public class MainActivity extends AppCompatActivity {
                     speak(L("定位成功，当前在" + position.getLabel(),
                             "Located successfully, you are at " + position.getLabel()), speechSpeed);
                     vibrate(200);
-                    // 延迟播报附近地点
                     statusUpdateHandler.postDelayed(() -> {
                         announceNearbyPOIs(position);
-                        // 有目的地时，提示开始导航
                         if (hasDestination) {
                             statusUpdateHandler.postDelayed(() -> speak(L(
                                             "目的地" + destinationName + "，长按开始导航",
@@ -1037,7 +1055,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 开始导航（检查定位、目的地有效性，计算路径并启动导航）
+     * 开始导航
      */
     private void startNavigation(String target) {
         if (currentPosition == null) {
@@ -1049,7 +1067,6 @@ public class MainActivity extends AppCompatActivity {
         destinationName = target;
         hasDestination = true;
 
-        // 检查目标位置是否存在
         Position targetPosition = findPositionByName(target);
         if (targetPosition == null) {
             speak(L("未找到目的地：" + target,
@@ -1061,7 +1078,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // 设置导航参数并计算路径
         navigationService.setCurrentPosition(currentPosition);
         navigationService.setTarget(target);
         navigationService.setNavigationConfig(navigationPace, speechSpeed, currentLanguage.locale);
@@ -1075,7 +1091,6 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
-        // 启动连续导航
         speak(L("开始导航到" + target + "，预计" + path.size() + "个步骤",
                         "Starting navigation to " + target + ", approximately " + path.size() + " steps"),
                 speechSpeed);
@@ -1085,7 +1100,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 启动导航状态更新（每2秒更新一次顶部显示）
+     * 启动导航状态更新
      */
     private void startStatusUpdater() {
         statusUpdateRunnable = new Runnable() {
@@ -1099,7 +1114,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 更新导航状态显示（根据当前状态动态调整顶部文本）
+     * 更新导航状态显示
      */
     private void updateNavigationStatus() {
         if (isInSettingsMode) return;
@@ -1129,41 +1144,78 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 进入设置模式（显示设置界面，播报操作提示）
+     * 进入设置模式
      */
     private void enterSettingsMode() {
         isInSettingsMode = true;
         settingsFullscreen.setVisibility(View.VISIBLE);
-        speak(L("进入设置。上下滑动调语速，左右滑动切换语言，单击切换间隔，双击退出",
-                        "Entering settings. Swipe up or down to adjust speech speed, left or right to switch language, tap to switch interval, double tap to exit"),
-                speechSpeed);
         updateSettingsDisplay();
+
+        speak(L(
+                "进入设置。上下滑动调语速，左右滑动切换语言，左右滑动间隔区域切换间隔，左右滑动单位区域切换步数或厘米，上下滑动步幅区域调节步幅，双击退出",
+                "Entering settings. Swipe up or down to adjust speech speed, swipe left or right to switch language, swipe the interval area to change interval, swipe the unit area to switch steps or cm, swipe the stride area up or down to adjust stride, double tap to exit"
+        ), speechSpeed);
     }
 
     /**
-     * 退出设置模式（隐藏设置界面，保存设置并播报结果）
+     * 退出设置模式
      */
     private void exitSettingsMode() {
         isInSettingsMode = false;
         settingsFullscreen.setVisibility(View.GONE);
-        updateUnitDisplay(); // 退出时刷新单位显示（防止设置变更未同步）
+        updateUnitDisplay();
+
+        boolean useCm = isUsingCm();
+        float strideCm = getStrideCm();
+
         speak(L(
-                        String.format("设置完成。语速%.1f倍，%s", speechSpeed, currentLanguage.displayName),
-                        String.format(Locale.US, "Settings saved. Speech speed %.1fx, %s", speechSpeed, currentLanguage.displayName)),
-                speechSpeed);
+                String.format(Locale.CHINA, "设置完成。语速%.1f倍，%s，单位%s，步幅%.0f厘米",
+                        speechSpeed,
+                        currentLanguage.displayName,
+                        useCm ? "厘米" : "步数",
+                        strideCm),
+                String.format(Locale.US, "Settings saved. Speech speed %.1fx, %s, unit %s, stride %.0f cm",
+                        speechSpeed,
+                        currentLanguage.displayName,
+                        useCm ? "cm" : "steps",
+                        strideCm)
+        ), speechSpeed);
     }
 
     /**
-     * 更新设置界面显示（语速、语言、间隔）
+     * 更新设置界面显示（语速、语言、间隔、单位、步幅）
      */
     private void updateSettingsDisplay() {
-        tvSpeedDisplay.setText(L(
-                String.format("语速：%.1f倍", speechSpeed),
-                String.format(Locale.US, "Speed: %.1fx", speechSpeed)));
-        tvLanguageDisplay.setText(L("语言：", "Language: ") + currentLanguage.displayName);
-        tvPaceDisplay.setText(L(
-                String.format("间隔：%d秒", navigationPace / 1000),
-                String.format(Locale.US, "Interval: %ds", navigationPace / 1000)));
+        if (tvSpeedDisplay != null) {
+            tvSpeedDisplay.setText(L(
+                    String.format(Locale.CHINA, "语速：%.1f倍", speechSpeed),
+                    String.format(Locale.US, "Speed: %.1fx", speechSpeed)));
+        }
+
+        if (tvLanguageDisplay != null) {
+            tvLanguageDisplay.setText(L("语言：", "Language: ") + currentLanguage.displayName);
+        }
+
+        if (tvPaceDisplay != null) {
+            tvPaceDisplay.setText(L(
+                    String.format(Locale.CHINA, "间隔：%d秒", navigationPace / 1000),
+                    String.format(Locale.US, "Interval: %ds", navigationPace / 1000)));
+        }
+
+        boolean useCm = isUsingCm();
+        float strideCm = getStrideCm();
+
+        if (tvUnitDisplay != null) {
+            tvUnitDisplay.setText(L(
+                    "距离单位：" + (useCm ? "厘米" : "步数"),
+                    "Distance Unit: " + (useCm ? "cm" : "steps")));
+        }
+
+        if (tvStrideDisplay != null) {
+            tvStrideDisplay.setText(L(
+                    String.format(Locale.CHINA, "步幅：%.0f厘米", strideCm),
+                    String.format(Locale.US, "Stride: %.0f cm", strideCm)));
+        }
     }
 
     /**
@@ -1175,7 +1227,6 @@ public class MainActivity extends AppCompatActivity {
             ttsService.setSpeed(speechSpeed);
         }
 
-        // 持久化语速设置
         getSharedPreferences("UserSettings", MODE_PRIVATE)
                 .edit()
                 .putFloat("speechRate", speechSpeed)
@@ -1186,6 +1237,42 @@ public class MainActivity extends AppCompatActivity {
                         String.format("语速%.1f倍", speechSpeed),
                         String.format(Locale.US, "Speech speed %.1fx", speechSpeed)),
                 speechSpeed);
+    }
+
+    /**
+     * 调整步幅（厘米）
+     */
+    private void adjustStrideCm(float deltaCm) {
+        float newStride = Math.max(30f, Math.min(120f, getStrideCm() + deltaCm));
+        getSharedPreferences("UserSettings", MODE_PRIVATE)
+                .edit()
+                .putFloat("strideCm", newStride)
+                .apply();
+
+        updateSettingsDisplay();
+
+        speak(L(
+                String.format(Locale.CHINA, "步幅%.0f厘米", newStride),
+                String.format(Locale.US, "Stride %.0f cm", newStride)
+        ), speechSpeed);
+    }
+
+    /**
+     * 切换距离单位（步数/厘米）
+     */
+    private void switchDistanceUnit() {
+        boolean newUseCm = !isUsingCm();
+        getSharedPreferences("UserSettings", MODE_PRIVATE)
+                .edit()
+                .putBoolean("useCm", newUseCm)
+                .apply();
+
+        updateSettingsDisplay();
+
+        speak(L(
+                "距离单位已切换为" + (newUseCm ? "厘米" : "步数"),
+                "Distance unit switched to " + (newUseCm ? "cm" : "steps")
+        ), speechSpeed);
     }
 
     /**
@@ -1206,7 +1293,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean isSwitchingLanguage = false;
 
     /**
-     * 切换到指定语言（更新TTS、Vosk、APP全局语言）
+     * 切换到指定语言
      */
     private void switchToLanguage(VoskSpeechRecognizerService.Language language) {
         if (isSwitchingLanguage) {
@@ -1222,12 +1309,10 @@ public class MainActivity extends AppCompatActivity {
         isSwitchingLanguage = true;
         currentLanguage = language;
 
-        // 1. 更新TTS语言（不依赖Vosk）
         if (ttsService != null && ttsService.isReady()) {
             ttsService.setLanguage(language.locale);
         }
 
-        // 2. Vosk单独切换，失败不影响其他功能
         try {
             if (serviceFactory != null) {
                 serviceFactory.switchLanguage(language);
@@ -1236,8 +1321,6 @@ public class MainActivity extends AppCompatActivity {
             Log.e(TAG, "Vosk切换失败，但不影响UI: " + e.getMessage());
         }
 
-        // 3. 先播报切换结果，再重建Activity（避免播报丢失）
-        // 关键：用"目标语言"来播报切换成功消息，让用户听到新语言的反馈
         String msg = (language == VoskSpeechRecognizerService.Language.ENGLISH)
                 ? "Switched to " + language.displayName
                 : "已切换到" + language.displayName;
@@ -1245,7 +1328,6 @@ public class MainActivity extends AppCompatActivity {
             ttsService.speak(msg, speechSpeed);
         }
 
-        // 4. 延迟更新APP全局语言，等待播报完成
         statusUpdateHandler.postDelayed(() -> {
             updateAppLocale(language.locale);
             isSwitchingLanguage = false;
@@ -1253,7 +1335,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 更新APP全局语言并重建Activity（生效语言设置）
+     * 更新APP全局语言并重建Activity
      */
     private void updateAppLocale(Locale locale) {
         getSharedPreferences("UserSettings", MODE_PRIVATE)
@@ -1303,28 +1385,23 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 清理语音识别结果（去除空格、换行、特殊字符，优化识别准确性）
+     * 清理语音识别结果
      */
     private String cleanRecognizedText(String text) {
         if (text == null) return "";
-        // 去除首尾空格
         String cleaned = text.trim();
-        // 连续空格替换为单个空格
         cleaned = cleaned.replaceAll("\\s+", " ");
-        // 去除换行、制表符等空白字符
         cleaned = cleaned.replaceAll("[\\n\\r\\t]", " ");
-        // 去除全角空格等特殊空白字符
         cleaned = cleaned.replaceAll("[　]+", "").replaceAll("[ \\u00A0\\u1680\\u180E\\u2000-\\u200B\\u202F\\u205F\\u3000\\uFEFF]+", " ");
         return cleaned.trim();
     }
 
     /**
-     * TTS播报（记录最后播报文本，检查音频状态，处理TTS未就绪异常）
+     * TTS播报
      */
     private void speak(String text, float speed) {
         lastSpokenText = text;
 
-        // 检查媒体音量（避免无声播报）
         android.media.AudioManager am = (android.media.AudioManager) getSystemService(AUDIO_SERVICE);
         int volume = am.getStreamVolume(android.media.AudioManager.STREAM_MUSIC);
         int maxVol = am.getStreamMaxVolume(android.media.AudioManager.STREAM_MUSIC);
@@ -1334,7 +1411,6 @@ public class MainActivity extends AppCompatActivity {
             Log.w(TAG, "警告: 媒体音量为0!");
         }
 
-        // 播报逻辑（TTS未就绪时尝试重新初始化）
         if (ttsService != null && ttsService.isReady()) {
             ttsService.speak(text, speed);
         } else {
@@ -1344,7 +1420,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 震动反馈（防止空指针异常）
+     * 震动反馈
      */
     private void vibrate(long ms) {
         if (vibrator != null) {
@@ -1353,7 +1429,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 启动绿色呼吸灯光晕效果（TTS播报时显示）
+     * 启动绿色呼吸灯光晕效果
      */
     private void startGlowEffect() {
         if (viewGlowOverlay == null) return;
@@ -1361,7 +1437,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 停止绿色呼吸灯光晕效果（TTS播报结束时停止）
+     * 停止绿色呼吸灯光晕效果
      */
     private void stopGlowEffect() {
         if (viewGlowOverlay == null) return;
@@ -1369,10 +1445,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 处理语音按钮按下事件（开始录音，设置按钮反馈，启动光晕）
+     * 处理语音按钮按下事件
      */
     private void handleVoiceButtonPress() {
-        // 检查录音权限
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
             if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 speak(L("需要录音权限", "Recording permission required"), speechSpeed);
@@ -1383,14 +1458,11 @@ public class MainActivity extends AppCompatActivity {
         }
 
         if (voskService != null && voskService.isInitialized()) {
-            // 震动反馈
             vibrate(80);
 
-            // 按钮视觉反馈（缩放）
             btnVoiceAssistant.setScaleX(0.95f);
             btnVoiceAssistant.setScaleY(0.95f);
 
-            // 设置按钮按下背景（清除Material Design tint，确保生效）
             Log.d(TAG, "设置按钮背景为鲜艳绿色（按住效果）");
             btnVoiceAssistant.post(() -> {
                 btnVoiceAssistant.setBackgroundTintList(null);
@@ -1398,7 +1470,6 @@ public class MainActivity extends AppCompatActivity {
                 Log.d(TAG, "背景已设置，tint已清除");
             });
 
-            // 开始录音，启动光晕
             isVoiceRecording = true;
             voskService.startListening();
             updateDisplay(L("正在聆听...", "Listening..."));
@@ -1406,7 +1477,6 @@ public class MainActivity extends AppCompatActivity {
 
             Log.d(TAG, "语音按钮按下，开始录音");
         } else {
-            // Vosk未就绪，使用文本输入兜底
             String input = etVoiceSimulate.getText().toString().trim();
             if (!input.isEmpty()) {
                 processVoiceCommand(input);
@@ -1420,14 +1490,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     /**
-     * 处理语音按钮释放事件（停止录音，恢复按钮状态，停止光晕）
+     * 处理语音按钮释放事件
      */
     private void handleVoiceButtonRelease() {
-        // 恢复按钮缩放
         btnVoiceAssistant.setScaleX(1.0f);
         btnVoiceAssistant.setScaleY(1.0f);
 
-        // 恢复按钮默认背景
         Log.d(TAG, "恢复按钮背景");
         btnVoiceAssistant.post(() -> {
             btnVoiceAssistant.setBackgroundTintList(null);
@@ -1437,16 +1505,12 @@ public class MainActivity extends AppCompatActivity {
         if (isVoiceRecording) {
             isVoiceRecording = false;
 
-            // 停止录音和光晕
             if (voskService != null) {
                 voskService.stopListening();
             }
             stopGlowEffect();
 
-            // 震动反馈
             vibrate(50);
-
-            // 显示识别中状态
             updateDisplay(L("识别中...", "Recognizing..."));
 
             Log.d(TAG, "语音按钮释放，停止录音，等待识别结果");
@@ -1456,20 +1520,15 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // 停止光晕效果
         stopGlowEffect();
-        // 移除所有Handler回调，避免内存泄漏
         statusUpdateHandler.removeCallbacksAndMessages(null);
         longPressHandler.removeCallbacksAndMessages(null);
-        // ✅ 新增：清理光晕兜底Handler
         glowSafetyHandler.removeCallbacksAndMessages(null);
 
-        // 停止导航服务
         if (navigationService != null) {
             navigationService.stopNavigation();
         }
 
-        // 关闭服务工厂（处理TTS、Vosk等服务释放）
         try {
             if (serviceFactory != null) {
                 serviceFactory.shutdown();
