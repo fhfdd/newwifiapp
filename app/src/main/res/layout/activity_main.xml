@@ -5,6 +5,7 @@
     android:padding="16dp"
     android:background="#F5F5F5">
 
+    <!-- 顶部显示区 + 呼吸灯光晕 -->
     <FrameLayout
         android:id="@+id/fl_top_display"
         android:layout_width="match_parent"
@@ -34,6 +35,7 @@
             android:contentDescription="@string/tap_to_replay" />
     </FrameLayout>
 
+    <!-- 语音输入框 -->
     <EditText
         android:id="@+id/et_voice_simulate"
         android:layout_width="match_parent"
@@ -48,6 +50,7 @@
         android:visibility="gone"
         android:contentDescription="@string/voice_command_hint" />
 
+    <!-- 按钮区 -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -56,6 +59,7 @@
         android:layout_above="@+id/bottom_spacer"
         android:orientation="vertical">
 
+        <!-- 第一行 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -90,6 +94,7 @@
                 android:contentDescription="@string/voice_assistant_desc" />
         </LinearLayout>
 
+        <!-- 第二行 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="0dp"
@@ -130,6 +135,7 @@
         android:layout_height="20dp"
         android:layout_alignParentBottom="true" />
 
+    <!-- 设置全屏浮层 -->
     <FrameLayout
         android:id="@+id/settings_fullscreen"
         android:layout_width="match_parent"
@@ -139,91 +145,97 @@
         android:clickable="true"
         android:focusable="true">
 
-        <LinearLayout
-            android:id="@+id/settings_content"
+        <ScrollView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:orientation="vertical"
-            android:gravity="center"
-            android:padding="40dp">
+            android:fillViewport="true">
 
-            <TextView
-                android:id="@+id/tv_title"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/settings_mode"
-                android:textSize="32sp"
-                android:textStyle="bold"
-                android:textColor="#FFFFFF"
-                android:layout_marginBottom="40dp" />
-
-            <TextView
-                android:id="@+id/tv_speed_display"
+            <LinearLayout
+                android:id="@+id/settings_content"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="@string/speech_rate_format"
-                android:textSize="36sp"
-                android:textColor="#FFFFFF"
+                android:orientation="vertical"
                 android:gravity="center"
-                android:padding="30dp"
-                android:layout_marginBottom="20dp" />
+                android:padding="40dp">
 
-            <TextView
-                android:id="@+id/tv_language_display"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/language_format"
-                android:textSize="36sp"
-                android:textColor="#FFFFFF"
-                android:gravity="center"
-                android:padding="30dp"
-                android:layout_marginBottom="20dp" />
+                <TextView
+                    android:id="@+id/tv_title"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/settings_mode"
+                    android:textSize="32sp"
+                    android:textStyle="bold"
+                    android:textColor="#FFFFFF"
+                    android:layout_marginBottom="40dp" />
 
-            <TextView
-                android:id="@+id/tv_pace_display"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/pace_format"
-                android:textSize="36sp"
-                android:textColor="#FFFFFF"
-                android:gravity="center"
-                android:padding="30dp"
-                android:layout_marginBottom="20dp" />
+                <TextView
+                    android:id="@+id/tv_speed_display"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/speech_rate_format"
+                    android:textSize="36sp"
+                    android:textColor="#FFFFFF"
+                    android:gravity="center"
+                    android:padding="30dp"
+                    android:layout_marginBottom="20dp" />
 
-            <TextView
-                android:id="@+id/tv_unit_display"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/distance_unit_format"
-                android:textSize="30sp"
-                android:gravity="center"
-                android:padding="24dp"
-                android:layout_marginBottom="20dp"
-                android:background="#330000FF"
-                android:textColor="#FFFFFF" />
+                <TextView
+                    android:id="@+id/tv_language_display"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/language_format"
+                    android:textSize="36sp"
+                    android:textColor="#FFFFFF"
+                    android:gravity="center"
+                    android:padding="30dp"
+                    android:layout_marginBottom="20dp" />
 
-            <TextView
-                android:id="@+id/tv_stride_display"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="步幅：70厘米"
-                android:textSize="30sp"
-                android:gravity="center"
-                android:padding="24dp"
-                android:layout_marginBottom="30dp"
-                android:background="#3344AA44"
-                android:textColor="#FFFFFF" />
+                <TextView
+                    android:id="@+id/tv_pace_display"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/pace_format"
+                    android:textSize="36sp"
+                    android:textColor="#FFFFFF"
+                    android:gravity="center"
+                    android:padding="30dp"
+                    android:layout_marginBottom="20dp" />
 
-            <TextView
-                android:id="@+id/tv_hint"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="@string/exit_hint"
-                android:textSize="20sp"
-                android:textColor="#CCCCCC"
-                android:gravity="center"
-                android:lineSpacingMultiplier="1.5" />
-        </LinearLayout>
+                <TextView
+                    android:id="@+id/tv_unit_display"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/distance_unit_format"
+                    android:textSize="30sp"
+                    android:gravity="center"
+                    android:padding="24dp"
+                    android:layout_marginBottom="20dp"
+                    android:background="#330000FF"
+                    android:textColor="#FFFFFF" />
+
+                <TextView
+                    android:id="@+id/tv_stride_display"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="步幅：60厘米"
+                    android:textSize="30sp"
+                    android:gravity="center"
+                    android:padding="24dp"
+                    android:layout_marginBottom="30dp"
+                    android:background="#3300AA00"
+                    android:textColor="#FFFFFF" />
+
+                <TextView
+                    android:id="@+id/tv_hint"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/exit_hint"
+                    android:textSize="20sp"
+                    android:textColor="#CCCCCC"
+                    android:gravity="center"
+                    android:lineSpacingMultiplier="1.5" />
+            </LinearLayout>
+        </ScrollView>
     </FrameLayout>
 
 </RelativeLayout>
