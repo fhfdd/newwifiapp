@@ -272,15 +272,6 @@ public class PathParser {
         return path.getDistance_cn();
     }
 
-    public static String getNextPointByLang(PathEntity path, Locale locale) {
-        if (locale.equals(Locale.ENGLISH)) {
-            return path.getNextPoint_en();
-        } else if (locale.getLanguage().equals("yue")) {
-            return path.getNextPoint_yue();
-        }
-        return path.getNextPoint_cn();
-    }
-
     public static List<String> getAllPOINames() {
         Set<String> pois = new HashSet<>();
         for (PathEntity path : allPaths) {
