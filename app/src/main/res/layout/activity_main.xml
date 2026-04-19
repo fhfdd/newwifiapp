@@ -5,7 +5,7 @@
     android:padding="16dp"
     android:background="#F5F5F5">
 
-    <!-- 顶部显示区 + 呼吸灯光晕 -->
+    <!-- 顶部显示区 + 呼吸灯光晕（完整保留第一段结构） -->
     <FrameLayout
         android:id="@+id/fl_top_display"
         android:layout_width="match_parent"
@@ -19,12 +19,13 @@
             android:layout_margin="10dp"
             android:visibility="gone"/>
 
-        <!-- 主显示文本 -->
+        <!-- 主显示文本（保留两段所有属性） -->
         <TextView
             android:id="@+id/tv_top_display"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:layout_margin="10dp"
+            android:layout_alignParentTop="true"
             android:background="@drawable/rounded_bg"
             android:padding="20dp"
             android:text="@string/welcome"
@@ -36,7 +37,7 @@
             android:contentDescription="@string/tap_to_replay"/>
     </FrameLayout>
 
-    <!-- 语音输入框 -->
+    <!-- 语音输入框（完整保留） -->
     <EditText
         android:id="@+id/et_voice_simulate"
         android:layout_width="match_parent"
@@ -51,7 +52,7 @@
         android:visibility="gone"
         android:contentDescription="@string/voice_command_hint"/>
 
-    <!-- 按钮网格布局 -->
+    <!-- 按钮网格布局（完整保留） -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -136,7 +137,7 @@
         android:layout_height="20dp"
         android:layout_alignParentBottom="true"/>
 
-    <!-- 设置全屏浮层（手势操作） -->
+    <!-- 设置全屏浮层（融合两段所有控件与属性） -->
     <FrameLayout
         android:id="@+id/settings_fullscreen"
         android:layout_width="match_parent"
@@ -155,6 +156,7 @@
             android:padding="40dp">
 
             <TextView
+                android:id="@+id/tv_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/settings_mode"
@@ -201,13 +203,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/distance_unit_format"
-                android:textSize="28sp"
+                android:textSize="30sp"
                 android:gravity="center"
                 android:padding="24dp"
                 android:background="#330000FF"
                 android:textColor="#FFFFFF"/>
 
             <TextView
+                android:id="@+id/tv_hint"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/exit_hint"
