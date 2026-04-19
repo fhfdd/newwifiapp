@@ -93,8 +93,18 @@ public class LocalIntentEngine {
     };
 
     // 手动设置位置关键词（我在XX）
+    // ✅ 包含 Vosk 常见误识别的容错："我到X"/"我要在"等，只要后面跟的是已知地点也当作设置位置
+    // 注："我到X"在中文里本就意为"我到了X"，语义上等同于"我在X"，不是导航指令
     private static final String[] SET_LOCATION_KEYWORDS = {
-            "我在", "我现在在", "我的位置是", "起点是", "从这里", "i am at", "i'm at", "start from"
+            "我在", "我现在在", "我现在位置", "我目前在", "我当前在",
+            "我的位置是", "我位置", "当前位置是", "起点是", "从这里",
+            "位置在", "现在位置",
+            // ↓ Vosk 容易把"我在"识别错，这些是常见的错识别形式
+            "我到", "我要在", "我再", "我倒",
+            // ↓ 英文
+            "i am at", "i'm at", "i am in", "i'm in", "i am on", "i'm on",
+            "my location is", "my position is", "start from", "starting at",
+            "i'm standing at", "i am standing at", "currently at"
     };
 
     // 查询位置关键词
@@ -273,7 +283,16 @@ public class LocalIntentEngine {
             return new IntentResult(Intent.EMERGENCY, null, 1.0f, text);
         }
 
-        // 2. 检查导航意图（带目的地）
+        // ✅ 2. 优先检查"我在XX"手动设置位置（必须在导航意图之前！）
+        // 原因：NAVIGATE_KEYWORDS 含单字"去"/"到"，容易误命中；
+        //       Vosk 也可能把"我在"误识别为"我到"/"我要"，
+        //       所以先用更具体的"我在XX"模式匹配，匹不上再看导航意图。
+        IntentResult setLocResult = parseSetLocationIntent(normalizedText, text);
+        if (setLocResult != null) {
+            return setLocResult;
+        }
+
+        // 3. 检查导航意图（带目的地）
         IntentResult navResult = parseNavigationIntent(normalizedText, text);
         if (navResult != null) {
             return navResult;
@@ -302,12 +321,6 @@ public class LocalIntentEngine {
 
         if (matchKeywords(normalizedText, LOCATE_KEYWORDS)) {
             return new IntentResult(Intent.LOCATE, null, 0.9f, text);
-        }
-
-        // 检查手动设置位置意图（我在XX）
-        IntentResult setLocResult = parseSetLocationIntent(normalizedText, text);
-        if (setLocResult != null) {
-            return setLocResult;
         }
 
         if (matchKeywords(normalizedText, REPEAT_KEYWORDS)) {
