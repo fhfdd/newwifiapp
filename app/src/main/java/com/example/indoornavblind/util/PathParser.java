@@ -12,7 +12,9 @@ import java.util.*;
 
 public class PathParser {
     private static final String TAG = "PathParser";
-    private static final String[] FINGERPRINT_FILES = {"path_1a.json","path_db.json"};
+
+    private static final String[] FINGERPRINT_FILES = {"path_1a.json"};
+
     private static List<PathEntity> allPaths = new ArrayList<>();
     private static boolean isInitialized = false;
     private static final Object LOCK = new Object();
@@ -270,15 +272,6 @@ public class PathParser {
             return path.getDistance_yue();
         }
         return path.getDistance_cn();
-    }
-
-    public static String getNextPointByLang(PathEntity path, Locale locale) {
-        if (locale.equals(Locale.ENGLISH)) {
-            return path.getNextPoint_en();
-        } else if (locale.getLanguage().equals("yue")) {
-            return path.getNextPoint_yue();
-        }
-        return path.getNextPoint_cn();
     }
 
     public static List<String> getAllPOINames() {
