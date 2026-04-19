@@ -69,7 +69,8 @@ public class MainActivity extends AppCompatActivity {
     private Button btnLocateNav, btnVoiceAssistant, btnSettings, btnEmergency;
     private View settingsFullscreen;
     private TextView tvSpeedDisplay, tvLanguageDisplay, tvPaceDisplay;
-    private TextView tvUnitDisplay; // 距离单位显示
+    private TextView tvUnitDisplay;   // 距离单位显示
+    private TextView tvStrideDisplay; // 步幅显示
 
     // 状态相关
     private Position currentPosition;
