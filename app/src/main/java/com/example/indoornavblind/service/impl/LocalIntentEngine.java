@@ -81,7 +81,7 @@ public class LocalIntentEngine {
     // 导航相关关键词
     private static final String[] NAVIGATE_KEYWORDS = {
             "去", "到", "导航", "前往", "带我去", "我要去", "怎么去", "走到",
-            "navigate", "go to", "take me to", "how to get to", "directions to", "guide me to"
+            "navigate", "goto", "takemeto", "howtogetto", "directionsto", "guidemeto"
     };
 
     // 定位相关关键词
@@ -91,13 +91,13 @@ public class LocalIntentEngine {
 
     // 手动设置位置关键词（我在XX）
     private static final String[] SET_LOCATION_KEYWORDS = {
-            "我在", "我现在在", "我的位置是", "起点是", "从这里", "i am at", "i'm at", "start from"
+            "我在", "我现在在", "我的位置是", "起点是", "从这里", "iamat", "i'mat", "startfrom"
     };
 
     // 查询位置关键词
     private static final String[] QUERY_LOCATION_KEYWORDS = {
             "我在哪", "在哪里", "当前位置", "现在在哪", "这是哪", "什么位置",
-            "where am i", "current location"
+            "whereami", "currentlocation"
     };
 
     // 查询附近关键词
@@ -549,7 +549,9 @@ public class LocalIntentEngine {
         // 去除所有空白字符（空格、中文空格、换行、制表符等）
         String normalized = text.replaceAll("\\s+", "");
         for (String keyword : keywords) {
-            if (normalized.contains(keyword)) {
+            // 同时去除关键词中的空格，支持 "i am at" 这种带空格的英文关键词
+            String normalizedKeyword = keyword.replaceAll("\\s+", "");
+            if (normalized.contains(normalizedKeyword)) {
                 return true;
             }
         }
