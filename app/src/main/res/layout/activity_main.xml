@@ -140,17 +140,17 @@
             android:layout_height="match_parent"
             android:orientation="vertical"
             android:gravity="center"
-            android:padding="40dp">
+            android:padding="24dp">
 
             <TextView
                 android:id="@+id/tv_title"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:text="@string/settings_mode"
-                android:textSize="32sp"
+                android:textSize="28sp"
                 android:textStyle="bold"
                 android:textColor="#FFFFFF"
-                android:layout_marginBottom="40dp"/>
+                android:layout_marginBottom="32dp"/>
 
             <!-- 语速显示 -->
             <TextView
@@ -158,11 +158,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/speech_rate_format"
-                android:textSize="36sp"
+                android:textSize="26sp"
                 android:textColor="#FFFFFF"
                 android:gravity="center"
-                android:padding="30dp"
-                android:layout_marginBottom="20dp"/>
+                android:padding="8dp"
+                android:layout_marginBottom="16dp"/>
 
             <!-- 语言显示 -->
             <TextView
@@ -170,11 +170,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/language_format"
-                android:textSize="36sp"
+                android:textSize="26sp"
                 android:textColor="#FFFFFF"
                 android:gravity="center"
-                android:padding="30dp"
-                android:layout_marginBottom="20dp"/>
+                android:padding="8dp"
+                android:layout_marginBottom="16dp"/>
 
             <!-- 播报间隔显示 -->
             <TextView
@@ -182,12 +182,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/pace_format"
-
-                android:textSize="36sp"
+                android:textSize="26sp"
                 android:textColor="#FFFFFF"
                 android:gravity="center"
-                android:padding="30dp"
-                android:layout_marginBottom="40dp"/>
+                android:padding="8dp"
+                android:layout_marginBottom="16dp"/>
 
             <!-- 距离单位显示 -->
             <TextView
@@ -195,10 +194,11 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/distance_unit_format"
-                android:textSize="30sp"
+                android:textSize="26sp"
                 android:gravity="center"
-                android:padding="24dp"
-                android:textColor="#FFFFFF" />
+                android:padding="8dp"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="40dp"/>
 
             <!-- 操作提示 -->
             <TextView
@@ -206,7 +206,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="@string/exit_hint"
-                android:textSize="20sp"
+                android:textSize="18sp"
                 android:textColor="#CCCCCC"
                 android:gravity="center"
                 android:lineSpacingMultiplier="1.5"/>
