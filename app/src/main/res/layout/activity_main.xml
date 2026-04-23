@@ -1,0 +1,224 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:padding="16dp"
+    android:background="#F5F5F5">
+
+    <!-- 顶部显示区 + 呼吸灯光晕（完整保留第一段结构） -->
+    <FrameLayout
+        android:id="@+id/fl_top_display"
+        android:layout_width="match_parent"
+        android:layout_height="120dp">
+
+        <!-- 呼吸灯光晕覆盖层（自定义View） -->
+        <com.example.indoornavblind.ui.view.GlowView
+            android:id="@+id/view_glow_overlay"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="10dp"
+            android:visibility="gone"/>
+
+        <!-- 主显示文本（保留两段所有属性） -->
+        <TextView
+            android:id="@+id/tv_top_display"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="10dp"
+            android:layout_alignParentTop="true"
+            android:background="@drawable/rounded_bg"
+            android:padding="20dp"
+            android:text="@string/welcome"
+            android:textSize="24sp"
+            android:textColor="#000000"
+            android:gravity="center"
+            android:clickable="true"
+            android:focusable="true"
+            android:contentDescription="@string/tap_to_replay"/>
+    </FrameLayout>
+
+    <!-- 语音输入框（完整保留） -->
+    <EditText
+        android:id="@+id/et_voice_simulate"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:layout_below="@id/fl_top_display"
+        android:layout_marginTop="20dp"
+        android:hint="@string/voice_command_hint"
+        android:textSize="20sp"
+        android:padding="15dp"
+        android:background="@drawable/rounded_bg"
+        android:imeOptions="actionDone"
+        android:visibility="gone"
+        android:contentDescription="@string/voice_command_hint"/>
+
+    <!-- 按钮网格布局（完整保留） -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/et_voice_simulate"
+        android:layout_marginTop="20dp"
+        android:layout_above="@+id/bottom_spacer"
+        android:orientation="vertical">
+
+        <!-- 第一行：定位导航 + 语音助手 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_locate_nav"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_margin="8dp"
+                android:text="@string/locate_nav"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:background="@drawable/button_primary"
+                android:textColor="#FFFFFF"
+                android:contentDescription="定位和导航按钮。未定位时点击定位，定位后输入目的地再点击开始导航"/>
+
+            <Button
+                android:id="@+id/btn_voice_assistant"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_margin="8dp"
+                android:text="@string/voice_assistant"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:background="@drawable/button_secondary"
+                android:backgroundTint="@null"
+                android:textColor="#FFFFFF"
+                android:contentDescription="@string/voice_assistant_desc"/>
+        </LinearLayout>
+
+        <!-- 第二行：紧急求助 + 我的设置 -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btn_emergency"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_margin="8dp"
+                android:text="@string/help"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:background="@drawable/button_danger"
+                android:textColor="#FFFFFF"
+                android:contentDescription="@string/emergency_desc"/>
+
+            <Button
+                android:id="@+id/btn_settings"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:layout_margin="8dp"
+                android:text="@string/settings"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                android:background="@drawable/button_settings"
+                android:textColor="#FFFFFF"
+                android:contentDescription="@string/settings_desc"/>
+        </LinearLayout>
+    </LinearLayout>
+
+    <View
+        android:id="@+id/bottom_spacer"
+        android:layout_width="match_parent"
+        android:layout_height="20dp"
+        android:layout_alignParentBottom="true"/>
+
+    <!-- 设置全屏浮层（融合两段所有控件与属性） -->
+    <FrameLayout
+        android:id="@+id/settings_fullscreen"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#DD000000"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+
+        <LinearLayout
+            android:id="@+id/settings_content"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="24dp">
+
+            <TextView
+                android:id="@+id/tv_title"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/settings_mode"
+                android:textSize="28sp"
+                android:textStyle="bold"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="32dp"/>
+
+            <TextView
+                android:id="@+id/tv_speed_display"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/speech_rate_format"
+                android:textSize="26sp"
+                android:textColor="#FFFFFF"
+                android:gravity="center"
+                android:padding="8dp"
+                android:layout_marginBottom="16dp"/>
+
+            <TextView
+                android:id="@+id/tv_language_display"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/language_format"
+                android:textSize="26sp"
+                android:textColor="#FFFFFF"
+                android:gravity="center"
+                android:padding="8dp"
+                android:layout_marginBottom="16dp"/>
+
+            <TextView
+                android:id="@+id/tv_pace_display"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/pace_format"
+                android:textSize="26sp"
+                android:textColor="#FFFFFF"
+                android:gravity="center"
+                android:padding="8dp"
+                android:layout_marginBottom="16dp"/>
+
+            <TextView
+                android:id="@+id/tv_unit_display"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/distance_unit_format"
+                android:textSize="26sp"
+                android:gravity="center"
+                android:padding="8dp"
+                android:textColor="#FFFFFF"
+                android:layout_marginBottom="16dp" />
+
+            <TextView
+                android:id="@+id/tv_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/exit_hint"
+                android:textSize="18sp"
+                android:textColor="#CCCCCC"
+                android:gravity="center"
+                android:lineSpacingMultiplier="1.5"/>
+        </LinearLayout>
+    </FrameLayout>
+
+</RelativeLayout>
