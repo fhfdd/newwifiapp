@@ -1,10 +1,8 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Basic Info -->
+    <!--  Basic Info  -->
     <string name="app_name">Indoor Navigation Assistant</string>
     <string name="welcome_hint">Welcome! Tap "Settings" to enter settings mode</string>
-
-    <!-- Input/Button -->
+    <!--  Input/Button  -->
     <string name="voice_command_hint">Enter voice command (e.g., Locate, Navigate to toilet)</string>
     <string name="locate_nav">Locate/Nav</string>
     <string name="locate_nav_desc">Locate current position first, then navigate</string>
@@ -14,8 +12,7 @@
     <string name="settings_desc">Enter settings mode</string>
     <string name="help">Help</string>
     <string name="emergency_desc">Emergency Help</string>
-
-    <!-- Settings Mode -->
+    <!--  Settings Mode  -->
     <string name="speed_hint">Swipe up to speed up | Swipe down to slow down (Current: %.1fx)</string>
     <string name="language_hint">Tap panel to switch language (Current: %s)</string>
     <string name="exit_hint">Double tap anywhere to exit settings mode</string>
@@ -24,8 +21,7 @@
     <string name="speed_adjusted">Voice speed adjusted to: %.1fx</string>
     <string name="language_switched">Language switched to: %s</string>
     <string name="settings_mode_hint">Currently in settings mode. Double tap to exit first.</string>
-
-    <!-- Settings screen -->
+    <!--  Settings screen  -->
     <string name="settings_mode">Settings</string>
     <string name="speech_rate">Speech rate</string>
     <string name="language">Language</string>
@@ -38,7 +34,7 @@
     <string name="pace_adjusted">Interval adjusted to %d%s</string>
     <string name="unit_cm">cm</string>
     <string name="distance_unit_changed">Distance unit changed to %s</string>
-    <!-- Function Hints -->
+    <!--  Function Hints  -->
     <string name="tap_to_replay">Tap to replay voice</string>
     <string name="emergency_assistance">Emergency assistance requested! Please stay where you are.</string>
     <string name="nearby_locations">Nearby locations: Desk (5m), Toilet (10m)</string>
@@ -49,15 +45,12 @@
     <string name="locating">Locating...</string>
     <string name="navigating">Navigating...</string>
     <string name="distance_unit_format">Distance unit: %s</string>
-
     <string name="unit_steps_eng">steps</string>
     <string name="unit_cm_eng">cm</string>
     <string name="tts_distance_unit">Distance unit:</string>
     <string name="tts_distance_unit_eng">Distance unit:</string>
-
     <string name="speech_rate_format">Speech rate: %.1f×</string>
     <string name="times">× (times)</string>
-
     <string name="language_format">Language: %s</string>
-
+    <string name="nav_instruction_format">Walk %1$s %2$s forward</string>
 </resources>
