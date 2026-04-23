@@ -33,21 +33,19 @@ public class R_SettingsActivity extends AppCompatActivity {
     private FrameLayout settingsOverlay;
     private TextView tvSpeed, tvLang, tvPace, tvUnit, tvTitle, tvHint;
     private TextToSpeech tts;
+    private GestureDetector gestureDetector;
+    private GestureDetector paceDetector;
+    private GestureDetector unitDetector;
     private SharedPreferences prefs;
 
-    // Settings values
     private float speechRate = 1.0f;
-    private String currentLanguageCode = "zh"; // "zh" or "en"
-    private int paceSeconds = 3; // 3, 5, or 7 seconds
-    private boolean useCm = false; // false = steps, true = cm
+    private int currentLangIndex = 0; // 0 = 中文, 1 = English
+    private final String[] languages = {"中文", "English"};
+    private int paceSeconds = 3; // 3, 5, 7 seconds
+    private boolean useCm = false; // false = 步数, true = 厘米
 
-    // Pace cycle options
+    // Pace options
     private static final int[] PACE_OPTIONS = {3, 5, 7};
-
-    // Gesture detectors
-    private GestureDetector mainGestureDetector;
-    private GestureDetector paceGestureDetector;
-    private GestureDetector unitGestureDetector;
 
     @Override
     protected void attachBaseContext(Context newBase) {
@@ -60,7 +58,6 @@ public class R_SettingsActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Initialize views
         settingsOverlay = findViewById(R.id.settings_fullscreen);
         tvSpeed = findViewById(R.id.tv_speed_display);
         tvLang = findViewById(R.id.tv_language_display);
@@ -69,82 +66,43 @@ public class R_SettingsActivity extends AppCompatActivity {
         tvTitle = findViewById(R.id.tv_title);
         tvHint = findViewById(R.id.tv_hint);
 
-        // Load saved preferences
         prefs = getSharedPreferences("UserSettings", MODE_PRIVATE);
         speechRate = prefs.getFloat("speechRate", 1.0f);
-
-        // Load language from LanguageManager (single source of truth)
-        currentLanguageCode = LanguageManager.getLanguage(this);
-        if (!currentLanguageCode.equals("zh") && !currentLanguageCode.equals("en")) {
-            currentLanguageCode = "zh"; // default to Chinese
-        }
-
+        currentLangIndex = prefs.getInt("langIndex", 0);
         paceSeconds = prefs.getInt("pace", 3);
-        // Ensure paceSeconds is one of the valid options
-        boolean validPace = false;
-        for (int p : PACE_OPTIONS) {
-            if (p == paceSeconds) validPace = true;
-        }
-        if (!validPace) paceSeconds = 3;
+        useCm = prefs.getBoolean("useCm", false);
 
-        useCm = prefs.getBoolean("useCm", false); // false = steps, true = cm
-
-        // Update display
         updateDisplay();
 
-        // Initialize TTS
         tts = new TextToSpeech(this, status -> {
             if (status == TextToSpeech.SUCCESS) {
-                applyTtsLanguage();
+                String langCode = (currentLangIndex == 0) ? "zh" : "en";
+                LanguageManager.applyTtsLanguage(tts, langCode);
                 tts.setSpeechRate(speechRate);
-                Log.d(TAG, "TTS initialized, language: " + currentLanguageCode + ", rate: " + speechRate);
             }
         });
 
-        // Main gesture detector for speed (up/down) and language (left/right) anywhere
-        mainGestureDetector = new GestureDetector(this, new MainGestureListener());
-        settingsOverlay.setOnTouchListener((v, event) -> mainGestureDetector.onTouchEvent(event));
+        // Main gesture detector for speed and language
+        gestureDetector = new GestureDetector(this, new MainGestureListener());
+        settingsOverlay.setOnTouchListener((v, event) -> gestureDetector.onTouchEvent(event));
 
-        // Pace gesture detector (left/right swipe on pace area)
-        paceGestureDetector = new GestureDetector(this, new PaceGestureListener());
+        // Pace gesture detector for pace adjustment
+        paceDetector = new GestureDetector(this, new PaceGestureListener());
         tvPace.setOnTouchListener((v, event) -> {
             v.getParent().requestDisallowInterceptTouchEvent(true);
-            paceGestureDetector.onTouchEvent(event);
+            paceDetector.onTouchEvent(event);
             return true;
         });
 
-        // Unit gesture detector (left/right swipe on unit area)
-        unitGestureDetector = new GestureDetector(this, new UnitGestureListener());
+        // Unit gesture detector for distance unit
+        unitDetector = new GestureDetector(this, new UnitGestureListener());
         tvUnit.setOnTouchListener((v, event) -> {
             v.getParent().requestDisallowInterceptTouchEvent(true);
-            unitGestureDetector.onTouchEvent(event);
+            unitDetector.onTouchEvent(event);
             return true;
         });
     }
 
-    private void applyTtsLanguage() {
-        if (tts == null) return;
-
-        Locale locale;
-        if (currentLanguageCode.equals("en")) {
-            locale = Locale.US;
-        } else {
-            locale = Locale.SIMPLIFIED_CHINESE;
-        }
-
-        int result = tts.setLanguage(locale);
-        if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-            Log.e(TAG, "Language not supported: " + currentLanguageCode);
-            // Fallback to default
-            tts.setLanguage(Locale.getDefault());
-        } else {
-            Log.d(TAG, "TTS language set to: " + currentLanguageCode);
-        }
-    }
-
-    /**
-     * Main gesture listener for speed (vertical swipe) and language (horizontal swipe)
-     */
     private class MainGestureListener extends GestureDetector.SimpleOnGestureListener {
         private static final int SWIPE_THRESHOLD = 70;
         private static final int SWIPE_VELOCITY_THRESHOLD = 70;
@@ -162,14 +120,13 @@ public class R_SettingsActivity extends AppCompatActivity {
             float diffY = e2.getY() - e1.getY();
             float diffX = e2.getX() - e1.getX();
 
-            // Check if horizontal or vertical swipe
             if (Math.abs(diffX) > Math.abs(diffY)) {
                 // Horizontal swipe - change language
                 if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
                     if (diffX > 0) {
-                        onSwipeRight();  // Right swipe
+                        onSwipeRight();
                     } else {
-                        onSwipeLeft();   // Left swipe
+                        onSwipeLeft();
                     }
                     return true;
                 }
@@ -177,9 +134,9 @@ public class R_SettingsActivity extends AppCompatActivity {
                 // Vertical swipe - change speech rate
                 if (Math.abs(diffY) > SWIPE_THRESHOLD && Math.abs(velocityY) > SWIPE_VELOCITY_THRESHOLD) {
                     if (diffY > 0) {
-                        onSwipeDown();   // Down swipe (decrease speed)
+                        onSwipeDown();
                     } else {
-                        onSwipeUp();     // Up swipe (increase speed)
+                        onSwipeUp();
                     }
                     return true;
                 }
@@ -194,9 +151,6 @@ public class R_SettingsActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * Pace gesture listener - left/right swipe to change pace interval
-     */
     private class PaceGestureListener extends GestureDetector.SimpleOnGestureListener {
         private static final int SWIPE_THRESHOLD = 80;
         private static final int SWIPE_VELOCITY_THRESHOLD = 80;
@@ -210,14 +164,13 @@ public class R_SettingsActivity extends AppCompatActivity {
         public boolean onFling(@Nullable MotionEvent e1, @Nullable MotionEvent e2,
                                float velocityX, float velocityY) {
             if (e1 == null || e2 == null) return false;
-
             float diffX = e2.getX() - e1.getX();
             if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
-                // Left or right swipe on pace area
+                // Swipe on pace area - change pace interval
                 if (diffX > 0) {
-                    onPaceSwipeRight();
+                    onPaceIncrease();
                 } else {
-                    onPaceSwipeLeft();
+                    onPaceDecrease();
                 }
                 return true;
             }
@@ -225,9 +178,6 @@ public class R_SettingsActivity extends AppCompatActivity {
         }
     }
 
-    /**
-     * Unit gesture listener - left/right swipe to change distance unit (steps/cm)
-     */
     private class UnitGestureListener extends GestureDetector.SimpleOnGestureListener {
         private static final int SWIPE_THRESHOLD = 80;
         private static final int SWIPE_VELOCITY_THRESHOLD = 80;
@@ -241,10 +191,8 @@ public class R_SettingsActivity extends AppCompatActivity {
         public boolean onFling(@Nullable MotionEvent e1, @Nullable MotionEvent e2,
                                float velocityX, float velocityY) {
             if (e1 == null || e2 == null) return false;
-
             float diffX = e2.getX() - e1.getX();
             if (Math.abs(diffX) > SWIPE_THRESHOLD && Math.abs(velocityX) > SWIPE_VELOCITY_THRESHOLD) {
-                // Left or right swipe on unit area - toggle unit
                 switchDistanceUnit();
                 return true;
             }
@@ -260,7 +208,7 @@ public class R_SettingsActivity extends AppCompatActivity {
         if (tts != null) {
             tts.setSpeechRate(speechRate);
         }
-        String feedback = String.format(Locale.US, "语速已调整为：%.1f倍", speechRate);
+        String feedback = getString(R.string.speed_adjusted, speechRate);
         speakFeedback(feedback);
     }
 
@@ -270,64 +218,70 @@ public class R_SettingsActivity extends AppCompatActivity {
         if (tts != null) {
             tts.setSpeechRate(speechRate);
         }
-        String feedback = String.format(Locale.US, "语速已调整为：%.1f倍", speechRate);
+        String feedback = getString(R.string.speed_adjusted, speechRate);
         speakFeedback(feedback);
     }
 
     // ==================== Language Methods ====================
 
     private void onSwipeLeft() {
-        toggleLanguage();
+        // Left swipe: cycle to next language
+        currentLangIndex = (currentLangIndex + 1) % languages.length;
+        applyLanguageChange();
     }
 
     private void onSwipeRight() {
-        toggleLanguage();
+        // Right swipe: cycle to previous language
+        currentLangIndex = (currentLangIndex - 1 + languages.length) % languages.length;
+        applyLanguageChange();
     }
 
-    private void toggleLanguage() {
-        // Toggle between "zh" and "en"
-        String newLanguageCode = currentLanguageCode.equals("zh") ? "en" : "zh";
+    private void applyLanguageChange() {
+        String newLangCode = currentLangIndex == 0 ? "zh" : "en";
 
-        // Save to LanguageManager (persists across app)
-        LanguageManager.setLanguage(this, newLanguageCode);
+        LanguageManager.setLanguage(this, newLangCode);
+        prefs.edit().putInt("langIndex", currentLangIndex).apply();
 
-        // Update current language code
-        currentLanguageCode = newLanguageCode;
-
-        // Update TTS language immediately (no recreate needed)
-        applyTtsLanguage();
-
-        // Update display with new language
         updateDisplay();
+        LanguageManager.applyTtsLanguage(tts, newLangCode);
 
-        // Speak feedback in the new language
-        String feedback = currentLanguageCode.equals("zh")
-                ? "语言已切换为中文"
-                : "Language switched to English";
+        String feedback = getString(R.string.language_switched, languages[currentLangIndex]);
         speakFeedback(feedback);
+
+        recreate();
     }
 
     // ==================== Pace Methods ====================
 
-    private void onPaceSwipeLeft() {
-        // Cycle to next pace value
+    private void onPaceIncrease() {
         int currentIndex = getPaceIndex();
         int newIndex = (currentIndex + 1) % PACE_OPTIONS.length;
         paceSeconds = PACE_OPTIONS[newIndex];
         updateDisplay();
 
-        String feedback = String.format(Locale.US, "间隔已调整为%d秒", paceSeconds);
+        boolean isZh = currentLangIndex == 0;
+        String feedback;
+        if (isZh) {
+            feedback = "播报间隔已调整为 " + paceSeconds + " 秒";
+        } else {
+            feedback = "Interval adjusted to " + paceSeconds + " seconds";
+        }
         speakFeedback(feedback);
     }
 
-    private void onPaceSwipeRight() {
-        // Cycle to previous pace value
+    private void onPaceDecrease() {
         int currentIndex = getPaceIndex();
         int newIndex = (currentIndex - 1 + PACE_OPTIONS.length) % PACE_OPTIONS.length;
         paceSeconds = PACE_OPTIONS[newIndex];
         updateDisplay();
 
-        String feedback = String.format(Locale.US, "间隔已调整为%d秒", paceSeconds);
+        boolean isZh = currentLangIndex == 0;
+        String feedback;
+        if (isZh) {
+            feedback = "播报间隔已调整为 " + paceSeconds + " 秒";
+        } else {
+            feedback = "Interval adjusted to " + paceSeconds + " seconds";
+        }
         speakFeedback(feedback);
     }
 
@@ -344,44 +298,44 @@ public class R_SettingsActivity extends AppCompatActivity {
 
     private void switchDistanceUnit() {
         useCm = !useCm;
+        prefs.edit().putBoolean("useCm", useCm).apply();
         updateDisplay();
 
-        String unitName = useCm ? "厘米" : "步数";
-        String feedback = "距离单位已切换为" + unitName;
+        boolean isZh = currentLangIndex == 0;
+        String unitName = useCm ? (isZh ? "厘米" : "cm") : (isZh ? "步数" : "steps");
+        String feedback;
+        if (isZh) {
+            feedback = "距离单位已切换为 " + unitName;
+        } else {
+            feedback = "Distance unit changed to " + unitName;
+        }
         speakFeedback(feedback);
     }
 
     // ==================== Display Update Methods ====================
 
     private void updateDisplay() {
-        boolean isZh = currentLanguageCode.equals("zh");
+        boolean isZh = currentLangIndex == 0;
 
-        // Update title
         tvTitle.setText(R.string.settings_mode);
+        tvSpeed.setText(getString(R.string.speech_rate_format, speechRate));
+        tvLang.setText(getString(R.string.language_format, languages[currentLangIndex]));
+        tvPace.setText(getString(R.string.pace_format, paceSeconds));
 
-        // Update speech rate display
-        tvSpeed.setText(String.format(Locale.US, "语速：%.1f倍", speechRate));
+        // Distance unit display
+        String unitName = useCm ? (isZh ? "厘米" : "cm") : (isZh ? "步数" : "steps");
+        String unitText = getString(R.string.distance_unit_format, unitName);
+        tvUnit.setText(unitText);
 
-        // Update language display
-        String langDisplayName = isZh ? "中文" : "English";
-        tvLang.setText(String.format(Locale.US, "语言：%s", langDisplayName));
+        Log.d(TAG, "Display updated - Language: " + languages[currentLangIndex] +
+                ", Pace: " + paceSeconds + "s, Unit: " + unitName + ", useCm: " + useCm);
 
-        // Update pace display
-        tvPace.setText(String.format(Locale.US, "间隔：%d秒", paceSeconds));
-
-        // Update unit display - direct string concatenation
-        String unitName = useCm ? "厘米" : "步数";
-        String unitDisplayText = "距离单位：" + unitName;
-        tvUnit.setText(unitDisplayText);
-
-        // Update hint text based on language
+        // Hint text
         if (isZh) {
             tvHint.setText("上下滑动：调节语速\n左右滑动：切换语言\n左右滑动间隔区域：切换间隔\n左右滑动单位区域：切换步/厘米\n双击：退出设置");
         } else {
             tvHint.setText("Swipe up/down: Adjust speed\nSwipe left/right: Change language\nSwipe pace area: Change interval\nSwipe unit area: Toggle steps/cm\nDouble tap: Exit settings");
         }
-
-        Log.d(TAG, "Display updated - language: " + currentLanguageCode + ", useCm: " + useCm + ", unit text: " + unitDisplayText);
     }
 
     // ==================== Feedback Methods ====================
@@ -404,33 +358,33 @@ public class R_SettingsActivity extends AppCompatActivity {
             tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
         }
 
-        // Visual feedback animation on unit display
+        // Visual feedback
         ObjectAnimator.ofFloat(tvUnit, "alpha", 0.7f, 1f).setDuration(200).start();
     }
 
     // ==================== Exit and Save Methods ====================
 
     private void closeSettings() {
-        // Save all settings to SharedPreferences
         SharedPreferences.Editor editor = prefs.edit();
         editor.putFloat("speechRate", speechRate);
+        editor.putInt("langIndex", currentLangIndex);
         editor.putInt("pace", paceSeconds);
         editor.putBoolean("useCm", useCm);
         editor.apply();
 
-        // Announce exit with summary of changes
+        // Speak exit message
+        boolean isZh = currentLangIndex == 0;
         String exitMessage;
-        if (currentLanguageCode.equals("zh")) {
-            exitMessage = String.format(Locale.CHINA, "设置已保存。语速%.1f倍，间隔%d秒，单位%s",
-                    speechRate, paceSeconds, useCm ? "厘米" : "步数");
+        if (isZh) {
+            exitMessage = "设置已保存。语速" + String.format("%.1f", speechRate) +
+                    "倍，间隔" + paceSeconds + "秒，单位" + (useCm ? "厘米" : "步数");
         } else {
-            exitMessage = String.format(Locale.US, "Settings saved. Speed %.1fx, interval %d seconds, unit %s",
-                    speechRate, paceSeconds, useCm ? "cm" : "steps");
+            exitMessage = "Settings saved. Speed " + String.format("%.1f", speechRate) +
+                    "x, interval " + paceSeconds + " seconds, unit " + (useCm ? "cm" : "steps");
         }
 
         if (tts != null) {
             tts.speak(exitMessage, TextToSpeech.QUEUE_FLUSH, null, null);
-            // Give TTS time to speak before finishing
             try {
                 Thread.sleep(300);
             } catch (InterruptedException e) {
@@ -438,20 +392,9 @@ public class R_SettingsActivity extends AppCompatActivity {
             }
         }
 
-        // Set result to indicate settings were changed
-        setResult(RESULT_OK);
-
-        // Hide overlay and finish
         settingsOverlay.setVisibility(View.GONE);
         Toast.makeText(this, exitMessage, Toast.LENGTH_SHORT).show();
         finish();
-    }
-
-    @Override
-    public void onBackPressed() {
-        closeSettings();
-        super.onBackPressed();
-
     }
 
     @Override
